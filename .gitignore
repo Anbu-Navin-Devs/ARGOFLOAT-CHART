@@ -1,0 +1,43 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+*/.venv/
+*/venv/
+
+# Environment configuration
+.env
+.env.*
+*.env
+
+# Logs and runtime outputs
+*.log
+logs/
+
+# Application state files
+ARGO_CHATBOT/query_history.json
+DATA_GENERATOR/update_state.json
+DATA_GENERATOR/data_generator.log
+
+# Large or generated datasets
+DATA_GENERATOR/full_argo_dataset.csv
+DATA_GENERATOR/csv_archive/*.csv
+
+# Export bundles and screenshots
+*.zip
+*.png
+*.jpg
+*.jpeg
+
+# IDE and OS junk
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
