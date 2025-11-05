@@ -4,7 +4,7 @@ from __future__ import annotations
 import pandas as pd
 import xarray as xr
 
-from config import CANONICAL_COLUMNS
+from ..config import CANONICAL_COLUMNS
 
 
 def dataset_to_dataframe(dataset: xr.Dataset) -> pd.DataFrame:

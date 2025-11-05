@@ -36,7 +36,7 @@ Each sub-folder may also contain its own README or configuration files for compo
 - Incremental downloader against the `ArgoFloats-synthetic-BGC` dataset using ERDDAP NetCDF endpoints (via `xarray` + `netCDF4`).
 - Duplicate-safe PostgreSQL loader with staging tables and unique key checks on `(float_id, timestamp, pressure)`.
 - Persistent CSV archive of newly inserted rows for offline review.
-- Tkinter GUI (`gui.py`) offering one-click updates, progress feedback, and summary reporting.
+- Tkinter GUI (`monitoring/gui/app.py`) offering one-click updates, progress feedback, and summary reporting.
 - State tracking (`update_state.json`) so each run resumes from the last successful ingestion window.
 
 ---
@@ -82,7 +82,7 @@ Run the GUI or call `update_manager.perform_update()` to download and load new A
 ```powershell
 cd DATA_GENERATOR
 .venv\Scripts\activate
-python gui.py
+python -m monitoring.gui
 ```
 
 The GUI displays progress, inserts new rows into PostgreSQL, appends to `full_argo_dataset.csv`, and updates `update_state.json` for incremental continuity.
@@ -90,7 +90,8 @@ The GUI displays progress, inserts new rows into PostgreSQL, appends to `full_ar
 For headless updates you can invoke:
 
 ```python
-from update_manager import perform_update
+from DATA_GENERATOR.update_manager import perform_update
+
 perform_update()
 ```
 
@@ -120,7 +121,7 @@ The assistant will read the latest database range, accept natural-language quest
 3. **PostgreSQL → ARGO_CHATBOT** – Queries via dynamically generated SQL tuned to the user intent.
 4. **ARGO_CHATBOT → User** – Conversational summaries, map visualisation, downloadable artefacts.
 
-A quick health check for database freshness is provided by `DATA_GENERATOR/check_db_max.py`.
+A quick health check for database freshness is provided by `DATA_GENERATOR/monitoring/check_db_max.py`.
 
 ---
 

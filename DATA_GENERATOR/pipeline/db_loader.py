@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.inspection import inspect
 
-from config import CANONICAL_COLUMNS
+from ..config import CANONICAL_COLUMNS
 
 
 @contextmanager

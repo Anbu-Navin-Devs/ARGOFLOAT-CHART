@@ -9,7 +9,7 @@ from typing import Tuple
 import requests
 import xarray as xr
 
-from config import (
+from ..config import (
     DATASET_ID,
     ERDDAP_BASE_URL,
     LATITUDE_RANGE,

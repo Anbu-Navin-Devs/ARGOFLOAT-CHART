@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from config import DEFAULT_START_DATE, STATE_FILE_PATH
+from ..config import DEFAULT_START_DATE, STATE_FILE_PATH
 
 
 def _state_file() -> Path:

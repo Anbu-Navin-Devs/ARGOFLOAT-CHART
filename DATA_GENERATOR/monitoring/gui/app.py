@@ -1,15 +1,17 @@
-"""Tkinter GUI entrypoint for the data generator."""
+"""Tkinter GUI entrypoint for supervising the data generator."""
 from __future__ import annotations
 
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
-from state_manager import load_last_success_timestamp
-from update_manager import UpdateResult, perform_update
+from ...pipeline.state_manager import load_last_success_timestamp
+from ...update_manager import UpdateResult, perform_update
 
 
 class DataGeneratorGUI(tk.Tk):
+    """Desktop helper to trigger pipeline runs and review results."""
+
     def __init__(self) -> None:
         super().__init__()
         self.title("FloatChart Data Generator")
@@ -107,7 +109,9 @@ class DataGeneratorGUI(tk.Tk):
     def _present_summary(self, result: UpdateResult) -> None:
         self._append_output("\nSummary")
         self._append_output("-" * 40)
-        self._append_output(f"Requested window: {result.requested_start.isoformat()} → {result.requested_end.isoformat()}")
+        self._append_output(
+            f"Requested window: {result.requested_start.isoformat()} → {result.requested_end.isoformat()}"
+        )
         if result.actual_min_timestamp and result.actual_max_timestamp:
             self._append_output(
                 f"Returned window: {result.actual_min_timestamp.isoformat()} → {result.actual_max_timestamp.isoformat()}"

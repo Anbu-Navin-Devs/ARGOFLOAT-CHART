@@ -6,7 +6,7 @@ from typing import Tuple
 
 import pandas as pd
 
-from config import CANONICAL_COLUMNS, CSV_ARCHIVE_PATH
+from .config import CANONICAL_COLUMNS, CSV_ARCHIVE_PATH
 
 
 def append_to_archive(df: pd.DataFrame) -> Tuple[int, bool]:

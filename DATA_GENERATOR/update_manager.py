@@ -10,12 +10,12 @@ from typing import Callable, Optional
 import pandas as pd
 from dotenv import load_dotenv
 
-from config import REGION_LABEL
-from csv_archive import append_to_archive
-from db_loader import load_into_postgres
-from state_manager import load_last_success_timestamp, persist_last_success_timestamp
-from netcdf_fetcher import fetch_netcdf_dataset
-from netcdf_transformer import dataset_to_dataframe
+from .config import REGION_LABEL
+from .csv_archive import append_to_archive
+from .pipeline.db_loader import load_into_postgres
+from .pipeline.netcdf_fetcher import fetch_netcdf_dataset
+from .pipeline.netcdf_transformer import dataset_to_dataframe
+from .pipeline.state_manager import load_last_success_timestamp, persist_last_success_timestamp
 
 
 logger = logging.getLogger(__name__)
