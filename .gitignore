@@ -27,8 +27,6 @@ DATA_GENERATOR/update_state.json
 DATA_GENERATOR/data_generator.log
 
 # Large or generated datasets
-DATA_GENERATOR/full_argo_dataset.csv
-DATA_GENERATOR/csv_archive/*.csv
 
 # Export bundles and screenshots
 *.zip

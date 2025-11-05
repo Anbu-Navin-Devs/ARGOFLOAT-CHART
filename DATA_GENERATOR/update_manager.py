@@ -11,7 +11,6 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from .config import REGION_LABEL
-from .csv_archive import append_to_archive
 from .pipeline.db_loader import load_into_postgres
 from .pipeline.netcdf_fetcher import fetch_netcdf_dataset
 from .pipeline.netcdf_transformer import dataset_to_dataframe
@@ -27,7 +26,7 @@ class UpdateResult:
     requested_end: datetime
     downloaded_rows: int
     inserted_rows: int
-    archive_created: bool
+    checkpoint_updated: bool
     actual_min_timestamp: Optional[datetime]
     actual_max_timestamp: Optional[datetime]
     unique_floats: int
@@ -84,7 +83,7 @@ def perform_update(
             requested_end=fetch_end,
             downloaded_rows=0,
             inserted_rows=0,
-            archive_created=False,
+            checkpoint_updated=False,
             actual_min_timestamp=None,
             actual_max_timestamp=None,
             unique_floats=0,
@@ -92,18 +91,17 @@ def perform_update(
 
     log(f"⬇️ Downloaded {downloaded_rows} rows.")
 
-    total_rows, inserted_rows, inserted_df = load_into_postgres(dataframe)
+    total_rows, inserted_rows, _ = load_into_postgres(dataframe)
     log(f"🗄️ Prepared {total_rows} rows for database insertion.")
     log(f"✅ Inserted {inserted_rows} new rows into Postgres.")
     report(80)
 
     if inserted_rows > 0:
-        archive_rows, created = append_to_archive(inserted_df)
-        log("💾 Created archive file." if created else f"💾 Appended {archive_rows} rows to archive.")
         persist_last_success_timestamp(fetch_end)
         log(f"🕒 Updated checkpoint to {fetch_end.isoformat()}.")
+        checkpoint_updated = True
     else:
-        archive_rows, created = 0, False
+        checkpoint_updated = False
         log("ℹ️ Checkpoint unchanged because no rows were added.")
 
     min_ts = dataframe["timestamp"].min()
@@ -116,7 +114,7 @@ def perform_update(
         requested_end=fetch_end,
         downloaded_rows=downloaded_rows,
         inserted_rows=inserted_rows,
-        archive_created=created,
+        checkpoint_updated=checkpoint_updated,
         actual_min_timestamp=min_ts if pd.notna(min_ts) else None,
         actual_max_timestamp=max_ts if pd.notna(max_ts) else None,
         unique_floats=unique_floats,

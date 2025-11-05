@@ -35,8 +35,7 @@ Each sub-folder may also contain its own README or configuration files for compo
 ### DATA_GENERATOR
 - Incremental downloader against the `ArgoFloats-synthetic-BGC` dataset using ERDDAP NetCDF endpoints (via `xarray` + `netCDF4`).
 - Duplicate-safe PostgreSQL loader with staging tables and unique key checks on `(float_id, timestamp, pressure)`.
-- Persistent CSV archive of newly inserted rows for offline review.
-- Tkinter GUI (`monitoring/gui/app.py`) offering one-click updates, progress feedback, and summary reporting.
+- Tkinter GUI (`gui.py`) offering one-click updates, progress feedback, and an inline database snapshot.
 - State tracking (`update_state.json`) so each run resumes from the last successful ingestion window.
 
 ---
@@ -82,10 +81,12 @@ Run the GUI or call `update_manager.perform_update()` to download and load new A
 ```powershell
 cd DATA_GENERATOR
 .venv\Scripts\activate
-python -m monitoring.gui
+python -m DATA_GENERATOR.gui
+# or simply
+python gui.py
 ```
 
-The GUI displays progress, inserts new rows into PostgreSQL, appends to `full_argo_dataset.csv`, and updates `update_state.json` for incremental continuity.
+The GUI displays progress, inserts new rows into PostgreSQL, and updates `update_state.json` for incremental continuity. Use the “Show Database Snapshot” button to view row counts and recent observations without leaving the app.
 
 For headless updates you can invoke:
 
@@ -121,13 +122,13 @@ The assistant will read the latest database range, accept natural-language quest
 3. **PostgreSQL → ARGO_CHATBOT** – Queries via dynamically generated SQL tuned to the user intent.
 4. **ARGO_CHATBOT → User** – Conversational summaries, map visualisation, downloadable artefacts.
 
-A quick health check for database freshness is provided by `DATA_GENERATOR/monitoring/check_db_max.py`.
+Use the GUI’s “Show Database Snapshot” action to verify database freshness in one click.
 
 ---
 
 ## Development Guidelines
 
-- Commit without generated data (`full_argo_dataset.csv`, archives) thanks to the root `.gitignore`.
+- Commit without generated data thanks to the root `.gitignore`.
 - Prefer component-specific virtual environments; both folders include helper `.gitignore` entries to keep them out of version control.
 - Log output such as `backend.log` or ERDDAP download logs remain local; delete before committing if accidentally staged.
 - If you add new dependencies, update the relevant `requirements.txt` and document configuration changes here.

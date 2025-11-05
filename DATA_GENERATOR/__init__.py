@@ -1,1 +1,1 @@
-"""Data generator package exposing pipeline and monitoring utilities."""
+"""Data generator package exposing pipeline utilities and GUI entrypoints."""
