@@ -1,15 +1,31 @@
+"""
+FloatChat API Server - Web Application Backend
+Serves the web interface and provides REST API endpoints for ocean data queries.
+"""
+
 import os
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 from flask_cors import CORS
 import re
 from database_utils import LOCATIONS
 
+# Import the brain module for intelligent queries
+try:
+    from brain import get_intelligent_answer
+except ImportError:
+    get_intelligent_answer = None
+
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:anbu2006@localhost:5432/argo_db")
-app = Flask(__name__)
-CORS(app) # Enable Cross-Origin Resource Sharing
+
+# Get the directory where this script is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, 'static')
+
+app = Flask(__name__, static_folder=STATIC_DIR)
+CORS(app)  # Enable Cross-Origin Resource Sharing
 
 # --- DATABASE CONNECTION ---
 try:
@@ -19,16 +35,97 @@ except Exception as e:
     print(f"API Server: Error connecting to database: {e}")
     engine = None
 
-# --- API ENDPOINTS ---
+# =============================================
+# STATIC FILE ROUTES - Serve Web Application
+# =============================================
+
+@app.route('/')
+def serve_index():
+    """Serve the main web application."""
+    return send_from_directory(STATIC_DIR, 'index.html')
+
+@app.route('/static/<path:path>')
+def serve_static(path):
+    """Serve static files (CSS, JS, images)."""
+    return send_from_directory(STATIC_DIR, path)
+
+@app.route('/static/css/<path:path>')
+def serve_css(path):
+    """Serve CSS files."""
+    return send_from_directory(os.path.join(STATIC_DIR, 'css'), path)
+
+@app.route('/static/js/<path:path>')
+def serve_js(path):
+    """Serve JavaScript files."""
+    return send_from_directory(os.path.join(STATIC_DIR, 'js'), path)
+
+# =============================================
+# API ENDPOINTS
+# =============================================
+
 @app.route('/api/status')
 def get_status():
-    if not engine: return jsonify({"status": "error", "database": "disconnected"}), 500
+    """Check API and database connection status."""
+    if not engine:
+        return jsonify({"status": "error", "database": "disconnected"}), 500
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
         return jsonify({"status": "online", "database": "connected"})
     except Exception as e:
         return jsonify({"status": "online", "database": "error", "message": str(e)}), 500
+
+
+@app.route('/api/query')
+def handle_query():
+    """
+    Main query endpoint - processes natural language questions about ocean data.
+    Uses the brain module for intelligent parsing and SQL generation.
+    
+    Query Parameters:
+        - question: The natural language question (required)
+        - year: Optional year filter
+        - month: Optional month filter
+    
+    Returns:
+        JSON with query_type, sql_query, summary, and data
+    """
+    question = request.args.get('question', '').strip()
+    
+    if not question:
+        return jsonify({"error": "Missing 'question' parameter"}), 400
+    
+    if not get_intelligent_answer:
+        return jsonify({"error": "Query processing module not available"}), 500
+    
+    try:
+        # Add year/month context to the question if provided
+        year = request.args.get('year')
+        month = request.args.get('month')
+        
+        enhanced_question = question
+        if year and month:
+            month_names = ['January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December']
+            month_name = month_names[int(month) - 1] if 1 <= int(month) <= 12 else month
+            enhanced_question = f"{question} in {month_name} {year}"
+        elif year:
+            enhanced_question = f"{question} in {year}"
+        
+        # Get intelligent answer from brain module
+        result = get_intelligent_answer(enhanced_question)
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        print(f"Query error: {e}")
+        return jsonify({
+            "query_type": "Error",
+            "summary": f"An error occurred while processing your query: {str(e)}",
+            "data": [],
+            "sql_query": "N/A"
+        }), 500
+
 
 @app.route('/api/locations')
 def get_locations():
@@ -175,18 +272,61 @@ def get_float_trajectory(float_id):
     except Exception as e:
         return jsonify({"error": f"Database query failed: {e}"}), 500
 
-def start_api_server(host: str = "127.0.0.1", port: int = 5000, debug: bool = False):
-    """Start the Flask API server.
 
-    Exposed as a function so the GUI can launch this in a background process
-    without invoking the Flask reloader (which would spawn duplicate processes
-    and cause port conflicts on Windows).
+@app.route('/api/statistics')
+def get_statistics():
+    """Get overall statistics about the dataset."""
+    if not engine:
+        return jsonify({"error": "Database connection not available"}), 500
+    
+    query = text("""
+        SELECT 
+            COUNT(*) as total_records,
+            COUNT(DISTINCT "float_id") as unique_floats,
+            MIN("timestamp") as earliest_record,
+            MAX("timestamp") as latest_record,
+            AVG("temperature") as avg_temperature,
+            AVG("salinity") as avg_salinity
+        FROM argo_data;
+    """)
+    
+    try:
+        with engine.connect() as connection:
+            result = connection.execute(query).mappings().first()
+            stats = dict(result)
+            # Format timestamps
+            for key in ['earliest_record', 'latest_record']:
+                if stats[key] and hasattr(stats[key], 'isoformat'):
+                    stats[key] = stats[key].isoformat()
+            return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch statistics: {e}"}), 500
+
+
+# =============================================
+# SERVER STARTUP
+# =============================================
+
+def start_api_server(host: str = "127.0.0.1", port: int = 5000, debug: bool = False):
     """
-    # Disable the auto reloader explicitly to avoid double-start.
+    Start the Flask API server.
+    
+    Exposed as a function so it can be launched programmatically.
+    The debug mode includes auto-reload which is useful for development.
+    """
+    print(f"\n{'='*60}")
+    print(f"  FloatChat - Ocean Intelligence Web Application")
+    print(f"{'='*60}")
+    print(f"  Server starting at: http://{host}:{port}")
+    print(f"  Open this URL in your browser to use the application")
+    print(f"{'='*60}\n")
+    
+    # Disable the auto reloader explicitly to avoid double-start issues
     app.run(host=host, port=port, debug=debug, use_reloader=False)
 
-# --- RUN THE SERVER DIRECTLY (stand‑alone use) ---
+
+# --- RUN THE SERVER DIRECTLY (standalone use) ---
 if __name__ == '__main__':
-    # When run standalone we still avoid the reloader; debug toolbars/logging OK.
-    start_api_server(debug=True)
+    # When run standalone, start with debug mode
+    start_api_server(host="127.0.0.1", port=5000, debug=True)
 

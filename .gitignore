@@ -14,8 +14,7 @@ venv/
 
 # Environment configuration
 .env
-.env.*
-*.env
+!.env.example
 
 # Logs and runtime outputs
 *.log

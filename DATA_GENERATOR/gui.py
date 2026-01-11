@@ -1,4 +1,7 @@
-"""Tkinter GUI for triggering updates and inspecting database status."""
+"""
+FloatChart Data Generator - Desktop Application
+Tkinter GUI for fetching ARGO float data and loading into PostgreSQL database.
+"""
 from __future__ import annotations
 
 import math
@@ -13,6 +16,20 @@ from sqlalchemy import create_engine, text
 from .env_utils import load_environment
 from .pipeline.state_manager import load_last_success_timestamp
 from .update_manager import UpdateResult, perform_update
+from .config import REGION_LABEL
+
+# Color scheme matching the web app
+COLORS = {
+    "bg_main": "#0E1116",
+    "bg_panel": "#181D24",
+    "bg_surface": "#202630",
+    "text_primary": "#E6EDF3",
+    "text_secondary": "#8A98A8",
+    "accent_primary": "#2E8BFF",
+    "accent_success": "#2E7D32",
+    "accent_danger": "#E2504C",
+    "border": "#2E3843",
+}
 
 
 def _format_coord(value: float | None) -> str:
@@ -68,56 +85,204 @@ def collect_db_snapshot() -> List[str]:
 
 
 class DataGeneratorGUI(tk.Tk):
-    """Desktop helper to trigger pipeline runs and review results."""
+    """Desktop application for managing ARGO data pipeline."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.title("FloatChart Data Generator")
-        self.resizable(False, False)
+        self.title("🌊 FloatChart Data Generator")
+        self.configure(bg=COLORS["bg_main"])
+        self.resizable(True, True)
+        self.minsize(600, 500)
+        
+        # Center window on screen
+        self.geometry("700x600")
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (700 // 2)
+        y = (self.winfo_screenheight() // 2) - (600 // 2)
+        self.geometry(f"+{x}+{y}")
 
         self.status_var = tk.StringVar(value=self._status_message())
-
+        
+        # Configure ttk styles
+        self._configure_styles()
         self._build_layout()
 
+    def _configure_styles(self) -> None:
+        """Configure ttk styles for dark theme."""
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # Progress bar style
+        style.configure(
+            "Custom.Horizontal.TProgressbar",
+            troughcolor=COLORS["bg_surface"],
+            background=COLORS["accent_primary"],
+            bordercolor=COLORS["border"],
+            lightcolor=COLORS["accent_primary"],
+            darkcolor=COLORS["accent_primary"],
+        )
+
     def _build_layout(self) -> None:
-        header = tk.Label(self, text="ARGO Data Updater", font=("Segoe UI", 16, "bold"))
-        header.grid(row=0, column=0, columnspan=2, padx=16, pady=(16, 8))
-
-        status_label = tk.Label(self, textvariable=self.status_var, anchor="w")
-        status_label.grid(row=1, column=0, columnspan=2, sticky="we", padx=16)
-
+        # Main container
+        main_frame = tk.Frame(self, bg=COLORS["bg_main"])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Header
+        header_frame = tk.Frame(main_frame, bg=COLORS["bg_main"])
+        header_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        title_label = tk.Label(
+            header_frame, 
+            text="🌊 FloatChart Data Generator", 
+            font=("Segoe UI", 20, "bold"),
+            bg=COLORS["bg_main"],
+            fg=COLORS["accent_primary"]
+        )
+        title_label.pack(anchor="w")
+        
+        subtitle_label = tk.Label(
+            header_frame, 
+            text="ARGO Float Data Pipeline Manager", 
+            font=("Segoe UI", 11),
+            bg=COLORS["bg_main"],
+            fg=COLORS["text_secondary"]
+        )
+        subtitle_label.pack(anchor="w")
+        
+        # Region info
+        region_label = tk.Label(
+            header_frame,
+            text=f"📍 Region: {REGION_LABEL}",
+            font=("Segoe UI", 10),
+            bg=COLORS["bg_main"],
+            fg=COLORS["text_secondary"]
+        )
+        region_label.pack(anchor="w", pady=(5, 0))
+        
+        # Status panel
+        status_frame = tk.Frame(main_frame, bg=COLORS["bg_panel"], highlightbackground=COLORS["border"], highlightthickness=1)
+        status_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        status_inner = tk.Frame(status_frame, bg=COLORS["bg_panel"])
+        status_inner.pack(fill=tk.X, padx=15, pady=12)
+        
+        status_title = tk.Label(
+            status_inner,
+            text="Status",
+            font=("Segoe UI", 10, "bold"),
+            bg=COLORS["bg_panel"],
+            fg=COLORS["text_secondary"]
+        )
+        status_title.pack(anchor="w")
+        
+        status_label = tk.Label(
+            status_inner, 
+            textvariable=self.status_var, 
+            font=("Segoe UI", 11),
+            bg=COLORS["bg_panel"],
+            fg=COLORS["text_primary"],
+            anchor="w"
+        )
+        status_label.pack(anchor="w", fill=tk.X)
+        
+        # Progress bar
         self.progress_var = tk.IntVar(value=0)
         self.progress_bar = ttk.Progressbar(
-            self,
+            status_inner,
             orient="horizontal",
-            length=420,
+            length=400,
             mode="determinate",
             maximum=100,
             variable=self.progress_var,
+            style="Custom.Horizontal.TProgressbar"
         )
-        self.progress_bar.grid(row=2, column=0, columnspan=2, padx=16, pady=(4, 12))
+        self.progress_bar.pack(fill=tk.X, pady=(10, 0))
 
+        # Buttons frame
+        button_frame = tk.Frame(main_frame, bg=COLORS["bg_main"])
+        button_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        # Update button
         self.update_button = tk.Button(
-            self,
-            text="Update Latest Data",
-            width=24,
+            button_frame,
+            text="⬇️  Update Latest Data",
+            font=("Segoe UI", 11, "bold"),
+            bg=COLORS["accent_primary"],
+            fg="white",
+            activebackground="#1a7aef",
+            activeforeground="white",
+            relief=tk.FLAT,
+            cursor="hand2",
+            padx=20,
+            pady=10,
             command=self._handle_update,
         )
-        self.update_button.grid(row=3, column=0, padx=(16, 8), pady=12)
-
-        self.quit_button = tk.Button(self, text="Close", width=12, command=self.destroy)
-        self.quit_button.grid(row=3, column=1, padx=(8, 16), pady=12)
-
+        self.update_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Database stats button
         self.stats_button = tk.Button(
-            self,
-            text="Show Database Snapshot",
-            width=24,
+            button_frame,
+            text="📊  Database Snapshot",
+            font=("Segoe UI", 11),
+            bg=COLORS["bg_surface"],
+            fg=COLORS["text_primary"],
+            activebackground=COLORS["bg_panel"],
+            activeforeground=COLORS["text_primary"],
+            relief=tk.FLAT,
+            cursor="hand2",
+            padx=20,
+            pady=10,
             command=self._handle_show_db_stats,
         )
-        self.stats_button.grid(row=4, column=0, columnspan=2, pady=(0, 12))
+        self.stats_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Close button
+        self.quit_button = tk.Button(
+            button_frame,
+            text="Close",
+            font=("Segoe UI", 11),
+            bg=COLORS["bg_surface"],
+            fg=COLORS["text_secondary"],
+            activebackground=COLORS["bg_panel"],
+            activeforeground=COLORS["text_primary"],
+            relief=tk.FLAT,
+            cursor="hand2",
+            padx=20,
+            pady=10,
+            command=self.destroy
+        )
+        self.quit_button.pack(side=tk.RIGHT)
 
-        self.output_box = scrolledtext.ScrolledText(self, width=80, height=20, state="disabled")
-        self.output_box.grid(row=5, column=0, columnspan=2, padx=16, pady=(0, 16))
+        # Output log frame
+        log_frame = tk.Frame(main_frame, bg=COLORS["bg_panel"], highlightbackground=COLORS["border"], highlightthickness=1)
+        log_frame.pack(fill=tk.BOTH, expand=True)
+        
+        log_header = tk.Label(
+            log_frame,
+            text="📋 Activity Log",
+            font=("Segoe UI", 10, "bold"),
+            bg=COLORS["bg_panel"],
+            fg=COLORS["text_secondary"],
+            anchor="w"
+        )
+        log_header.pack(fill=tk.X, padx=15, pady=(10, 5))
+        
+        self.output_box = scrolledtext.ScrolledText(
+            log_frame, 
+            width=80, 
+            height=15, 
+            state="disabled",
+            bg=COLORS["bg_surface"],
+            fg=COLORS["text_primary"],
+            font=("Consolas", 10),
+            relief=tk.FLAT,
+            insertbackground=COLORS["text_primary"],
+            selectbackground=COLORS["accent_primary"],
+            highlightthickness=0,
+            padx=10,
+            pady=10
+        )
+        self.output_box.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
     def _status_message(self) -> str:
         ts = load_last_success_timestamp()

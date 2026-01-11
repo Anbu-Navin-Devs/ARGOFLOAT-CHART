@@ -1,158 +1,246 @@
-# FloatChart – ARGO Ocean Intelligence Suite
+# 🌊 FloatChart – ARGO Ocean Intelligence Suite
 
-FloatChart is a desktop-first toolkit for oceanographic exploration built around ARGO float observations. The repository combines two tightly-coupled applications:
+A comprehensive toolkit for exploring ARGO float oceanographic data. This repository combines two applications:
 
-1. **ARGO_CHATBOT** – an interactive assistant that translates natural-language questions into SQL, visualises results, and lets analysts explore floats on an embedded map.
-2. **DATA_GENERATOR** – an incremental ETL utility that pulls new ARGO profiles from the Ifremer ERDDAP catalogue, loads them into PostgreSQL, and archives the ingested sample set locally.
-
-Together they provide an end-to-end workflow: fetch the most recent observations, ingest them safely, and interrogate the dataset through a conversational UI with rich visual output.
-
----
-
-## Repository Layout
-
-| Path | Purpose |
-|------|---------|
-| `ARGO_CHATBOT/` | Tkinter GUI, Flask API, intent interpreter, visual components, and related assets for the FloatChat assistant. |
-| `DATA_GENERATOR/` | Headless + GUI tooling to fetch ERDDAP data, update PostgreSQL, maintain a CSV archive, and track ingestion checkpoints. |
-| `.gitignore` | Repository-wide ignores for local state, generated assets, and large data files. |
-| `LICENSE` | MIT license covering the full project. |
-| `README.md` | This document.
-
-Each sub-folder may also contain its own README or configuration files for component-specific details.
+| Application | Type | Purpose |
+|-------------|------|---------|
+| **ARGO_CHATBOT** | 🌐 Web App | Natural language query interface with maps & charts |
+| **DATA_GENERATOR** | 🖥️ Desktop App | ETL pipeline for fetching ARGO data into PostgreSQL |
 
 ---
 
-## Key Capabilities
-
-### ARGO_CHATBOT
-- Natural-language query parsing via Groq LLM models with guardrails for ARGO-specific intents.
-- Generated SQL with automatic verification and graceful guidance when queries are under-specified.
-- Interactive Tkinter interface featuring chat history, an embedded `tkintermapview`, and high-contrast theme.
-- Inline data visualisations (profiles, time-series, scatter plots, metrics) with export to CSV/XLSX/PNG/ZIP packages.
-- Auxiliary Flask API (`api_server.py`) powering map searches, float profiles, and trajectory retrieval.
-
-### DATA_GENERATOR
-- Incremental downloader against the `ArgoFloats-synthetic-BGC` dataset using ERDDAP NetCDF endpoints (via `xarray` + `netCDF4`).
-- Duplicate-safe PostgreSQL loader with staging tables and unique key checks on `(float_id, timestamp, pressure)`.
-- Tkinter GUI (`gui.py`) offering one-click updates, progress feedback, and an inline database snapshot.
-- State tracking (`update_state.json`) so each run resumes from the last successful ingestion window.
-
----
-
-## Getting Started
-
-### 1. Prerequisites
-- Python 3.10+ (tested with Python 3.11).
-- PostgreSQL instance with an accessible database (defaults expect `argo_db`).
-- Groq API credentials for intent parsing and summarisation.
-- Optional: a virtual environment for each component.
-
-### 2. Configure environments
-Create a `.env` file in **both** `ARGO_CHATBOT/` and `DATA_GENERATOR/` (or point one to the other) with at minimum:
+## 📁 Project Structure
 
 ```
-DATABASE_URL=postgresql+psycopg2://postgres:password@localhost:5432/argo_db
-GROQ_API_KEY=your_groq_key
-GROQ_MODEL_NAME=llama-3.1-70b-versatile
+ARGOFLOAT-CHART/
+├── .env.example           # Environment template (copy to .env)
+├── .gitignore             # Git ignore rules
+├── LICENSE                # MIT License
+├── README.md              # This file
+│
+├── ARGO_CHATBOT/          # 🌐 Web Application
+│   ├── app.py             # Flask server (main entry point)
+│   ├── brain.py           # NLP & SQL generation
+│   ├── sql_builder.py     # Query construction
+│   ├── database_utils.py  # Database utilities
+│   ├── requirements.txt   # Python dependencies
+│   ├── README.md          # Detailed documentation
+│   └── static/
+│       ├── index.html     # Web frontend
+│       ├── css/styles.css # Styling
+│       └── js/app.js      # JavaScript
+│
+└── DATA_GENERATOR/        # 🖥️ Desktop Application
+    ├── gui.py             # Tkinter GUI (main entry point)
+    ├── config.py          # Configuration settings
+    ├── env_utils.py       # Environment loading
+    ├── update_manager.py  # Update orchestration
+    ├── requirements.txt   # Python dependencies
+    └── pipeline/
+        ├── netcdf_fetcher.py    # ERDDAP data fetcher
+        ├── netcdf_transformer.py # Data transformation
+        ├── db_loader.py         # PostgreSQL loader
+        └── state_manager.py     # Checkpoint tracking
 ```
 
-Adjust credentials, host, and model as needed. The chatbot requires the Groq entries; the data generator only needs `DATABASE_URL`.
+---
 
-Install dependencies per component:
+## 🚀 Quick Start
+
+### Step 1: Clone & Setup Environment
+
+```bash
+git clone <repository-url>
+cd ARGOFLOAT-CHART
+
+# Create virtual environment
+python -m venv .venv
+
+# Activate (Windows)
+.venv\Scripts\activate
+
+# Activate (macOS/Linux)
+source .venv/bin/activate
+```
+
+### Step 2: Configure Environment Variables
+
+```bash
+# Copy the template
+cp .env.example .env
+
+# Edit .env with your values:
+# - DATABASE_URL: Your PostgreSQL connection string
+# - GROQ_API_KEY: Your Groq API key (for chatbot)
+```
+
+### Step 3: Setup Database
+
+Create a PostgreSQL database and table:
+
+```sql
+CREATE DATABASE argo_db;
+
+\c argo_db
+
+CREATE TABLE argo_data (
+    id SERIAL PRIMARY KEY,
+    float_id INTEGER NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    pressure DOUBLE PRECISION,
+    temperature DOUBLE PRECISION,
+    salinity DOUBLE PRECISION,
+    dissolved_oxygen DOUBLE PRECISION,
+    chlorophyll DOUBLE PRECISION
+);
+
+-- Create indexes for performance
+CREATE INDEX idx_argo_float_id ON argo_data(float_id);
+CREATE INDEX idx_argo_timestamp ON argo_data(timestamp);
+CREATE INDEX idx_argo_location ON argo_data(latitude, longitude);
+
+-- Unique constraint to prevent duplicates
+CREATE UNIQUE INDEX idx_argo_unique ON argo_data(float_id, timestamp, pressure);
+```
+
+### Step 4: Populate Data (DATA_GENERATOR)
+
+```bash
+cd DATA_GENERATOR
+pip install -r requirements.txt
+
+# Run the GUI
+python -m DATA_GENERATOR.gui
+```
+
+Click **"Update Latest Data"** to fetch ARGO float data from ERDDAP.
+
+### Step 5: Run the Web Application (ARGO_CHATBOT)
 
 ```bash
 cd ARGO_CHATBOT
-python -m venv .venv
-.venv\Scripts\activate
 pip install -r requirements.txt
 
-cd ..\DATA_GENERATOR
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+# Start the web server
+python app.py
 ```
 
-*(The generator now relies on `xarray`/`netCDF4` alongside `pandas` and `sqlalchemy` for NetCDF ingestion.)*
-
-### 3. Refresh the dataset
-Run the GUI or call `update_manager.perform_update()` to download and load new ARGO observations.
-
-```powershell
-cd DATA_GENERATOR
-.venv\Scripts\activate
-python -m DATA_GENERATOR.gui
-# or simply
-python gui.py
-```
-
-The GUI displays progress, inserts new rows into PostgreSQL, and updates `update_state.json` for incremental continuity. Use the “Show Database Snapshot” button to view row counts and recent observations without leaving the app.
-
-For headless updates you can invoke:
-
-```python
-from DATA_GENERATOR.update_manager import perform_update
-
-perform_update()
-```
-
-### 4. Launch the explorer
-Start the Flask API (optional when running from the GUI, which can spawn it automatically):
-
-```powershell
-cd ARGO_CHATBOT
-.venv\Scripts\Activate
-python api_server.py
-```
-
-Then launch the main chatbot UI:
-
-```powershell
-python app_gui.py
-```
-
-The assistant will read the latest database range, accept natural-language questions, and render maps/graphs accordingly. Use the “Inter Map” button for the dedicated trajectory explorer found in `map_window.py`.
+Open your browser: **http://127.0.0.1:5000**
 
 ---
 
-## Data Flow Summary
+## 🌐 ARGO_CHATBOT (Web Application)
 
-1. **ERDDAP → DATA_GENERATOR** – Fetches NetCDF windows bounded by the last success timestamp.
-2. **DATA_GENERATOR → PostgreSQL (`argo_data`)** – Deduplicated inserts using a staging table.
-3. **PostgreSQL → ARGO_CHATBOT** – Queries via dynamically generated SQL tuned to the user intent.
-4. **ARGO_CHATBOT → User** – Conversational summaries, map visualisation, downloadable artefacts.
+A modern web interface for querying ocean data using natural language.
 
-Use the GUI’s “Show Database Snapshot” action to verify database freshness in one click.
+### Features
+- 💬 **Natural Language Queries** - Ask questions in plain English
+- 🗺️ **Interactive Map** - Leaflet.js with dark theme
+- 📊 **Dynamic Charts** - Chart.js visualizations
+- 📋 **Data Tables** - Browse and export results
+- 📜 **Query History** - Saved in browser localStorage
+- ⬇️ **CSV Export** - Download query results
 
----
+### Example Queries
+- "What are the nearest ARGO floats to Chennai?"
+- "Show temperature trends in the Arabian Sea"
+- "What is the average salinity in Bay of Bengal?"
+- "Show trajectory of float 2902115"
 
-## Development Guidelines
-
-- Commit without generated data thanks to the root `.gitignore`.
-- Prefer component-specific virtual environments; both folders include helper `.gitignore` entries to keep them out of version control.
-- Log output such as `backend.log` or ERDDAP download logs remain local; delete before committing if accidentally staged.
-- If you add new dependencies, update the relevant `requirements.txt` and document configuration changes here.
-
----
-
-## Data Citation
-
-**ARGO Float Data:**
-These data were collected and made freely available by the International Argo Program and the national programs that contribute to it. (https://argo.ucsd.edu, https://www.ocean-ops.org). The Argo Program is part of the Global Ocean Observing System.
-
-**Data Source:**
-- Provider: Ifremer ERDDAP (Official ARGO Global Data Assembly Center)
-- Dataset: ArgoFloats-synthetic-BGC
-- Access: https://erddap.ifremer.fr/erddap/
-- License: Public Domain - Free for all uses including commercial
-- Updates: Near real-time (~24 hour latency)
-
-For detailed information about the data source, see [`DATA_SOURCE_VERIFICATION_REPORT.md`](DATA_SOURCE_VERIFICATION_REPORT.md).
+### Tech Stack
+- **Backend**: Flask, SQLAlchemy, LangChain + Groq
+- **Frontend**: HTML5, CSS3, JavaScript (ES6+)
+- **Map**: Leaflet.js
+- **Charts**: Chart.js
 
 ---
 
-## License
+## 🖥️ DATA_GENERATOR (Desktop Application)
 
-This project is offered under the terms of the MIT License. See [`LICENSE`](LICENSE) for full text.
+A Tkinter GUI for managing the ARGO data pipeline.
 
-ARGO data is provided free of charge by the International Argo Program and carries no restrictions on use.
+### Features
+- ⬇️ **One-Click Updates** - Fetch latest ARGO profiles from ERDDAP
+- 📊 **Database Snapshot** - View current data statistics
+- 📋 **Activity Log** - Track pipeline progress
+- 🔄 **Incremental Updates** - Only fetches new data since last run
+
+### Data Source
+- **ERDDAP**: Ifremer ARGO BGC synthetic profiles
+- **Region**: Indian Ocean (50°E-100°E, 20°S-25°N)
+- **Parameters**: Temperature, Salinity, Dissolved Oxygen, Chlorophyll
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables (.env)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `GROQ_API_KEY` | ✅ (Chatbot) | Groq API key for NLP |
+| `GROQ_MODEL_NAME` | ❌ | LLM model (default: llama-3.3-70b-versatile) |
+| `SHOW_INTENT_JSON` | ❌ | Debug mode (0 or 1) |
+
+### Supported Locations (Chatbot)
+
+| Location | Coordinates |
+|----------|-------------|
+| Arabian Sea | 5°N-25°N, 50°E-75°E |
+| Bay of Bengal | 5°N-22°N, 80°E-95°E |
+| Andaman Sea | 5°N-15°N, 92°E-98°E |
+| Chennai | 12.5°N-13.5°N, 80°E-80.5°E |
+| Mumbai | 18.5°N-19.5°N, 72.5°E-73°E |
+| Sri Lanka | 5°N-10°N, 79°E-82°E |
+| Equator | 2°S-2°N |
+
+---
+
+## 🐛 Troubleshooting
+
+### Database Connection Failed
+- Ensure PostgreSQL is running
+- Verify `DATABASE_URL` in `.env` file
+- Check that `argo_data` table exists
+
+### No Data in Chatbot
+- Run DATA_GENERATOR first to populate the database
+- Check database has records: `SELECT COUNT(*) FROM argo_data;`
+
+### Groq API Errors
+- Verify `GROQ_API_KEY` in `.env` file
+- Check API key at [console.groq.com](https://console.groq.com)
+
+### Port Already in Use
+```bash
+# Windows
+netstat -ano | findstr :5000
+taskkill /PID <PID> /F
+
+# macOS/Linux
+lsof -i :5000
+kill -9 <PID>
+```
+
+---
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) file.
+
+---
+
+## 🙏 Acknowledgments
+
+- [ARGO Program](https://argo.ucsd.edu/) - Global ocean observation network
+- [Ifremer ERDDAP](https://erddap.ifremer.fr/) - ARGO data access
+- [Groq](https://groq.com/) - Fast LLM inference
+- [Leaflet](https://leafletjs.com/) - Interactive maps
+- [Chart.js](https://www.chartjs.org/) - Data visualization
+
+---
+
+Made with 💙 for Ocean Science

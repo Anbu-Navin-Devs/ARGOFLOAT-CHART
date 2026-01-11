@@ -1,4 +1,7 @@
-"""Helpers for loading environment variables in different execution contexts."""
+"""
+Environment variable loading utilities for FloatChart Data Generator.
+Searches for .env files in common locations relative to the project structure.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,26 +9,31 @@ from typing import Iterable, Sequence
 
 from dotenv import load_dotenv
 
-# Default search order covers running from the repo root or inside DATA_GENERATOR.
+# Search order for .env files - covers running from different directories
 DEFAULT_ENV_PATHS: Sequence[Path] = (
-    Path(".env"),
-    Path("DATA_GENERATOR/.env"),
-    Path("ARGO_CHATBOT/.env"),
-    Path("../.env"),
+    Path(".env"),                    # Current directory
+    Path("../.env"),                 # Parent directory (project root)
+    Path("DATA_GENERATOR/.env"),     # From project root
+    Path("ARGO_CHATBOT/.env"),       # Cross-reference chatbot config
 )
 
 
 def load_environment(paths: Iterable[Path] = DEFAULT_ENV_PATHS) -> None:
-    """Attempt to load environment variables from the provided `.env` paths.
-
-    The first existing file is loaded first, but later files are allowed to
-    supplement values that were not already set to avoid surprising overrides.
+    """
+    Load environment variables from .env files.
+    
+    Searches through the provided paths and loads the first existing .env file.
+    Later files supplement but don't override already-set values.
+    
+    Args:
+        paths: Iterable of Path objects to search for .env files
     """
     loaded_any = False
     for candidate in paths:
         if candidate.exists():
             load_dotenv(candidate, override=False)
             loaded_any = True
+    
     if not loaded_any:
-        # Fall back to a bare load in case dotenv can discover something else.
+        # Fallback: let dotenv try to discover .env automatically
         load_dotenv()

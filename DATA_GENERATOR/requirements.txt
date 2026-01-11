@@ -1,6 +1,17 @@
+# FloatChart Data Generator - Dependencies
+
+# Data Processing
 pandas
+numpy
+
+# Network & Data Fetching
 requests
 xarray
 netCDF4
+
+# Database
 sqlalchemy
+psycopg2-binary
+
+# Environment
 python-dotenv

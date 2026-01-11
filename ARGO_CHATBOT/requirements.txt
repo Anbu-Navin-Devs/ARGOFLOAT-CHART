@@ -1,15 +1,30 @@
+# FloatChat - Ocean Intelligence Web Application
+# Python Dependencies
+
+# Web Framework
 flask
 flask-cors
+
+# Database
 sqlalchemy
 psycopg2-binary
-tkintermapview
-matplotlib
+
+# Data Processing
 pandas
-requests
-python-dotenv
-pyautogui
-pillow
+numpy
+openpyxl
+
+# AI/LLM Integration
 langchain-groq
 langchain-core
-openpyxl
-numpy
+
+# Environment & Utilities
+python-dotenv
+requests
+
+# Note: The following packages were used in the old Tkinter version
+# and are no longer required for the web version:
+# - tkintermapview (replaced by Leaflet.js)
+# - matplotlib (replaced by Chart.js)
+# - pyautogui (not needed)
+# - pillow (not needed for web)
