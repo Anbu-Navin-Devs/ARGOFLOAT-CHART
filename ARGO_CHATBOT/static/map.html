@@ -117,24 +117,26 @@
         
         .empty-state {
             text-align: center;
-            padding: 40px 20px;
+            padding: 24px 16px;
             color: var(--text-muted);
         }
         
         .empty-state svg {
-            margin-bottom: 16px;
-            opacity: 0.5;
+            margin-bottom: 10px;
+            opacity: 0.4;
+            width: 40px;
+            height: 40px;
         }
         
         .empty-state h3 {
             color: var(--text-secondary);
-            font-size: 16px;
-            margin-bottom: 8px;
+            font-size: 14px;
+            margin-bottom: 6px;
         }
         
         .empty-state p {
-            font-size: 13px;
-            line-height: 1.5;
+            font-size: 12px;
+            line-height: 1.4;
         }
         
         /* Float Info */
@@ -341,13 +343,13 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 40px;
+            padding: 24px;
         }
         
         .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--border);
+            width: 28px;
+            height: 28px;
+            border: 2px solid var(--border);
             border-top-color: var(--accent);
             border-radius: 50%;
             animation: spin 1s linear infinite;
@@ -433,12 +435,12 @@
             <div class="panel-content" id="panelContent">
                 <!-- Empty State -->
                 <div class="empty-state" id="emptyState">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 8v4l2.5 2.5"/>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
                     </svg>
                     <h3>Click on the Map</h3>
-                    <p>Select a location on the map to discover nearby ARGO floats and explore their oceanographic data.</p>
+                    <p>Click any ocean location to find nearby floats</p>
                 </div>
                 
                 <!-- Loading State -->
@@ -532,9 +534,11 @@
         let map, chart;
         let markers = [];
         let trajectoryPath = null;
+        let trajectoryMarkers = [];
         let clickMarker = null;
         let currentFloatData = [];
         let selectedFloatId = null;
+        let floatGroups = {};
         
         // DOM Elements
         const $ = id => document.getElementById(id);
@@ -653,6 +657,14 @@
                 `);
                 
                 if (currentFloatData.length > 0) {
+                    // Store float groups for trajectory
+                    floatGroups = {};
+                    currentFloatData.forEach(d => {
+                        const id = d.float_id || 'unknown';
+                        if (!floatGroups[id]) floatGroups[id] = [];
+                        floatGroups[id].push(d);
+                    });
+                    
                     displayNearbyFloats(currentFloatData);
                     plotFloatMarkers(currentFloatData);
                 } else {
@@ -666,11 +678,23 @@
         }
         
         function clearMarkers() {
+            // Remove previous click marker
+            if (clickMarker) {
+                clickMarker.remove();
+                clickMarker = null;
+            }
+            // Remove float markers
             markers.forEach(m => m.remove());
             markers = [];
+            // Remove trajectory
             if (trajectoryPath) {
                 trajectoryPath.remove();
                 trajectoryPath = null;
+            }
+            // Remove trajectory markers (start/end)
+            if (trajectoryMarkers) {
+                trajectoryMarkers.forEach(m => m.remove());
+                trajectoryMarkers = [];
             }
         }
         
@@ -823,118 +847,163 @@
             map.setView([latest.latitude, latest.longitude], 7);
         }
         
-        async function showTrajectory() {
-            if (!selectedFloatId) return;
+        function showTrajectory() {
+            if (!selectedFloatId || !floatGroups[selectedFloatId]) return;
             
-            // Query for trajectory
-            try {
-                const question = `Show trajectory of float ${selectedFloatId}`;
-                const params = new URLSearchParams({ question });
-                const res = await fetch(`${API_BASE}/api/query?${params}`);
-                const result = await res.json();
-                
-                if (result.data?.length > 1) {
-                    // Clear existing path
-                    if (trajectoryPath) trajectoryPath.remove();
-                    
-                    // Sort by time and create path
-                    const sorted = result.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-                    const pathPoints = sorted.map(d => [d.latitude, d.longitude]);
-                    
-                    trajectoryPath = L.polyline(pathPoints, {
-                        color: '#3b82f6',
-                        weight: 3,
-                        opacity: 0.8
-                    }).addTo(map);
-                    
-                    // Add start/end markers
-                    L.circleMarker(pathPoints[0], {
-                        radius: 8, fillColor: '#22c55e', fillOpacity: 1, color: 'white', weight: 2
-                    }).addTo(map).bindPopup('Start');
-                    
-                    L.circleMarker(pathPoints[pathPoints.length - 1], {
-                        radius: 8, fillColor: '#ef4444', fillOpacity: 1, color: 'white', weight: 2
-                    }).addTo(map).bindPopup('End');
-                    
-                    // Calculate distance
-                    let totalDistance = 0;
-                    for (let i = 1; i < pathPoints.length; i++) {
-                        totalDistance += haversine(pathPoints[i-1][0], pathPoints[i-1][1], pathPoints[i][0], pathPoints[i][1]);
-                    }
-                    
-                    // Show trajectory stats
-                    el.trajectorySection.classList.remove('hidden');
-                    el.trajectoryStats.innerHTML = `
-                        <div class="traj-stat">
-                            <div class="traj-stat-value">${totalDistance.toFixed(0)}</div>
-                            <div class="traj-stat-label">km traveled</div>
-                        </div>
-                        <div class="traj-stat">
-                            <div class="traj-stat-value">${pathPoints.length}</div>
-                            <div class="traj-stat-label">data points</div>
-                        </div>
-                    `;
-                    
-                    map.fitBounds(trajectoryPath.getBounds(), { padding: [50, 50] });
-                }
-            } catch (e) {
-                console.error('Trajectory query failed:', e);
+            const points = floatGroups[selectedFloatId];
+            if (points.length < 2) {
+                alert('Not enough data points to show trajectory');
+                return;
             }
+            
+            // Clear existing trajectory
+            if (trajectoryPath) trajectoryPath.remove();
+            trajectoryMarkers.forEach(m => m.remove());
+            trajectoryMarkers = [];
+            
+            // Sort by time and create path
+            const sorted = [...points].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const pathPoints = sorted.filter(d => d.latitude && d.longitude).map(d => [d.latitude, d.longitude]);
+            
+            if (pathPoints.length < 2) {
+                alert('Not enough valid coordinates for trajectory');
+                return;
+            }
+            
+            trajectoryPath = L.polyline(pathPoints, {
+                color: '#3b82f6',
+                weight: 3,
+                opacity: 0.8,
+                dashArray: '10, 5'
+            }).addTo(map);
+            
+            // Add start marker (green)
+            const startMarker = L.circleMarker(pathPoints[0], {
+                radius: 10, fillColor: '#22c55e', fillOpacity: 1, color: 'white', weight: 2
+            }).addTo(map).bindPopup(`<strong>Start</strong><br>${sorted[0].timestamp || 'Unknown'}`);
+            trajectoryMarkers.push(startMarker);
+            
+            // Add end marker (red)
+            const endMarker = L.circleMarker(pathPoints[pathPoints.length - 1], {
+                radius: 10, fillColor: '#ef4444', fillOpacity: 1, color: 'white', weight: 2
+            }).addTo(map).bindPopup(`<strong>End</strong><br>${sorted[sorted.length-1].timestamp || 'Unknown'}`);
+            trajectoryMarkers.push(endMarker);
+            
+            // Calculate distance
+            let totalDistance = 0;
+            for (let i = 1; i < pathPoints.length; i++) {
+                totalDistance += haversine(pathPoints[i-1][0], pathPoints[i-1][1], pathPoints[i][0], pathPoints[i][1]);
+            }
+            
+            // Show trajectory stats
+            el.trajectorySection.classList.remove('hidden');
+            el.trajectoryStats.innerHTML = `
+                <div class="traj-stat">
+                    <div class="traj-stat-value">${totalDistance.toFixed(0)}</div>
+                    <div class="traj-stat-label">km traveled</div>
+                </div>
+                <div class="traj-stat">
+                    <div class="traj-stat-value">${pathPoints.length}</div>
+                    <div class="traj-stat-label">data points</div>
+                </div>
+            `;
+            
+            map.fitBounds(trajectoryPath.getBounds(), { padding: [50, 50] });
         }
         
-        async function showProfile() {
-            if (!selectedFloatId) return;
+        function showProfile() {
+            if (!selectedFloatId || !floatGroups[selectedFloatId]) return;
             
-            try {
-                const question = `Get profile data for float ${selectedFloatId}`;
-                const params = new URLSearchParams({ question });
-                const res = await fetch(`${API_BASE}/api/query?${params}`);
-                const result = await res.json();
-                
-                if (result.data?.length > 0 && result.data[0].pressure != null) {
-                    el.profileSection.classList.remove('hidden');
-                    
-                    // Destroy existing chart
-                    if (chart) chart.destroy();
-                    
-                    const sorted = result.data.sort((a, b) => (a.pressure || 0) - (b.pressure || 0));
-                    
-                    chart = new Chart(el.profileChart.getContext('2d'), {
-                        type: 'line',
-                        data: {
-                            labels: sorted.map(d => d.pressure?.toFixed(0)),
-                            datasets: [
-                                {
-                                    label: 'Temp (°C)',
-                                    data: sorted.map(d => d.temperature),
-                                    borderColor: '#ef4444',
-                                    tension: 0.3,
-                                    yAxisID: 'y'
-                                },
-                                {
-                                    label: 'Salinity',
-                                    data: sorted.map(d => d.salinity),
-                                    borderColor: '#3b82f6',
-                                    tension: 0.3,
-                                    yAxisID: 'y1'
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
-                            scales: {
-                                x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                                y: { position: 'left', ticks: { color: '#ef4444' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-                                y1: { position: 'right', ticks: { color: '#3b82f6' }, grid: { display: false } }
-                            }
-                        }
-                    });
-                }
-            } catch (e) {
-                console.error('Profile query failed:', e);
+            const points = floatGroups[selectedFloatId];
+            
+            // Check if we have pressure data
+            const hasProfile = points.some(d => d.pressure != null);
+            if (!hasProfile) {
+                // Show temp/salinity over time instead
+                showTimeSeriesProfile(points);
+                return;
             }
+            
+            el.profileSection.classList.remove('hidden');
+            
+            // Destroy existing chart
+            if (chart) chart.destroy();
+            
+            const sorted = [...points].sort((a, b) => (a.pressure || 0) - (b.pressure || 0));
+            
+            chart = new Chart(el.profileChart.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: sorted.map(d => d.pressure?.toFixed(0)),
+                    datasets: [
+                        {
+                            label: 'Temp (°C)',
+                            data: sorted.map(d => d.temperature),
+                            borderColor: '#ef4444',
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Salinity',
+                            data: sorted.map(d => d.salinity),
+                            borderColor: '#3b82f6',
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+                    scales: {
+                        x: { title: { display: true, text: 'Pressure (dbar)', color: '#94a3b8' }, ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { position: 'left', ticks: { color: '#ef4444' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y1: { position: 'right', ticks: { color: '#3b82f6' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        
+        function showTimeSeriesProfile(points) {
+            el.profileSection.classList.remove('hidden');
+            
+            if (chart) chart.destroy();
+            
+            const sorted = [...points].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            chart = new Chart(el.profileChart.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: sorted.map(d => d.timestamp?.split('T')[0] || ''),
+                    datasets: [
+                        {
+                            label: 'Temp (°C)',
+                            data: sorted.map(d => d.temperature),
+                            borderColor: '#ef4444',
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Salinity',
+                            data: sorted.map(d => d.salinity),
+                            borderColor: '#3b82f6',
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+                    scales: {
+                        x: { title: { display: true, text: 'Time', color: '#94a3b8' }, ticks: { color: '#64748b', font: { size: 8 }, maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { position: 'left', ticks: { color: '#ef4444' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y1: { position: 'right', ticks: { color: '#3b82f6' }, grid: { display: false } }
+                    }
+                }
+            });
         }
         
         function exportData() {
