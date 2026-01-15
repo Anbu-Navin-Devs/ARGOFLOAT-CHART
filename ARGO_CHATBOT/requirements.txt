@@ -14,7 +14,8 @@ pandas
 numpy
 openpyxl
 
-# AI/LLM Integration
+# AI/LLM Integration (Choose ONE - Gemini is FREE and recommended)
+langchain-google-genai
 langchain-groq
 langchain-core
 
@@ -22,9 +23,13 @@ langchain-core
 python-dotenv
 requests
 
-# Note: The following packages were used in the old Tkinter version
-# and are no longer required for the web version:
-# - tkintermapview (replaced by Leaflet.js)
-# - matplotlib (replaced by Chart.js)
-# - pyautogui (not needed)
-# - pillow (not needed for web)
+# SETUP NOTES:
+# 1. Google Gemini (FREE - Recommended):
+#    - Get API key: https://aistudio.google.com/apikey
+#    - Set GOOGLE_API_KEY in .env
+#    - 60 requests/minute free!
+#
+# 2. Groq (FREE - Alternative):
+#    - Get API key: https://console.groq.com/keys
+#    - Set GROQ_API_KEY in .env
+#    - Very fast inference

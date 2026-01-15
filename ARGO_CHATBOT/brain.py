@@ -4,12 +4,54 @@ import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 import re
-from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from datetime import datetime
 import numpy as np
 import sql_builder
+
+# ------------------------------------------------------------------
+# LLM Provider Setup - Supports Groq and Google Gemini
+# ------------------------------------------------------------------
+
+def get_llm():
+    """
+    Initialize the LLM based on available API keys.
+    Priority: Google Gemini > Groq
+    """
+    load_dotenv()
+    
+    # Try Google Gemini first (free and powerful)
+    gemini_key = os.getenv("GOOGLE_API_KEY")
+    if gemini_key:
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            return ChatGoogleGenerativeAI(
+                model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+                google_api_key=gemini_key,
+                temperature=0
+            )
+        except ImportError:
+            print("Warning: langchain-google-genai not installed. Trying Groq...")
+    
+    # Fallback to Groq
+    groq_key = os.getenv("GROQ_API_KEY")
+    if groq_key:
+        try:
+            from langchain_groq import ChatGroq
+            return ChatGroq(
+                model=os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile"),
+                temperature=0,
+                api_key=groq_key
+            )
+        except ImportError:
+            print("Warning: langchain-groq not installed.")
+    
+    raise RuntimeError(
+        "No LLM API key found! Please set either:\n"
+        "  - GOOGLE_API_KEY (for Google Gemini - FREE)\n"
+        "  - GROQ_API_KEY (for Groq)"
+    )
 
 # ------------------------------------------------------------------
 # Global engine caching to avoid recreating engine for each question
@@ -90,9 +132,9 @@ def get_intelligent_answer(user_question: str):
     import logging
     logging.basicConfig(filename="backend.log", level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
-        load_dotenv(); GROQ_API_KEY = os.getenv("GROQ_API_KEY"); GROQ_MODEL = os.getenv("GROQ_MODEL_NAME")
+        load_dotenv()
         engine = get_engine()
-        llm = ChatGroq(model=GROQ_MODEL, temperature=0, api_key=GROQ_API_KEY)
+        llm = get_llm()  # Auto-selects Gemini or Groq
 
         context = get_database_context(engine)
         if not context:
