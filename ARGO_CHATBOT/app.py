@@ -31,12 +31,32 @@ app = Flask(__name__, static_folder=STATIC_DIR)
 CORS(app)  # Enable Cross-Origin Resource Sharing
 
 # --- DATABASE CONNECTION ---
-try:
-    engine = create_engine(DATABASE_URL)
-    print("API Server: Successfully connected to the database.")
-except Exception as e:
-    print(f"API Server: Error connecting to database: {e}")
-    engine = None
+def create_db_engine():
+    """Create database engine with connection pooling and error handling."""
+    try:
+        # Add connection args for better reliability
+        engine = create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,  # Test connection before using
+            pool_recycle=300,    # Recycle connections every 5 minutes
+            connect_args={
+                "connect_timeout": 30,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5
+            }
+        )
+        # Test the connection
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("API Server: Successfully connected to the database.")
+        return engine
+    except Exception as e:
+        print(f"Error creating database engine: {e}")
+        return None
+
+engine = create_db_engine()
 
 # =============================================
 # STATIC FILE ROUTES - Serve Web Application

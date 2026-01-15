@@ -8,16 +8,58 @@ An AI-powered web application for querying and visualizing ARGO float oceanograp
 
 **Try it now:** [https://floatchat.onrender.com](https://floatchat.onrender.com)
 
-> ⚠️ **Note:** The live demo contains sample data for demonstration purposes. For full access to real-time ARGO data, set up the local version.
+> ⚠️ **Demo Limitations:** The live demo uses sample data (300 records, 5 floats) for demonstration. For full real-time ARGO data (1000s of records), set up locally.
 
 ---
 
-## 🚀 Two Ways to Use This Project
+## 📋 Demo vs Local Comparison
 
-| Mode | Data | Best For |
-|------|------|----------|
-| **🌐 Live Demo** | Sample data (14 records) | Quick preview, sharing with others |
-| **💻 Local Setup** | Full ARGO data (1000s of records) | Research, full functionality |
+| Feature | 🌐 Live Demo | 💻 Local Setup |
+|---------|--------------|----------------|
+| **Data** | 300 sample records | 1000s of real records |
+| **Floats** | 5 demo floats | All Indian Ocean floats |
+| **Date Range** | Dec 20-30, 2025 | Full historical data |
+| **Location** | Bay of Bengal region | Entire Indian Ocean |
+| **Data Updates** | Static sample data | Real-time ERDDAP fetch |
+| **Best For** | Quick preview | Research & full analysis |
+
+---
+
+## 💬 Sample Questions to Ask
+
+### ✅ Works on Demo (Try These!)
+
+```
+📍 Location Queries:
+• "Show all ARGO floats"
+• "List float locations"
+• "Where are the floats?"
+
+📊 Data Analysis:
+• "What is the average temperature?"
+• "Show temperature data"
+• "Get salinity measurements"
+• "Show data at 100m depth"
+
+🔢 Specific Float:
+• "Show float 2902115"
+• "Trajectory of float 2902116"
+• "Data from float 2903001"
+
+📈 Trends:
+• "Temperature trends"
+• "Compare temperature and salinity"
+• "Show temperature vs depth"
+```
+
+### ⚠️ Limited on Demo (Works better locally)
+
+```
+• "Nearest floats to Chennai" (demo floats are offshore)
+• "Data from Arabian Sea" (demo data is in Bay of Bengal)
+• "Historical data from 2020" (demo only has Dec 2025)
+• "Show all floats in Mumbai area" (no floats near Mumbai in demo)
+```
 
 ---
 
@@ -145,24 +187,22 @@ The web app is deployed on **Render** with **Supabase** database.
 
 ---
 
-## 🔬 Example Queries
-
-Try these in the chatbot:
-- "Show all ARGO floats"
-- "What is the average temperature?"
-- "Temperature trends in Arabian Sea"
-- "Show trajectory of float 2902115"
-- "Nearest floats to Chennai"
-- "Compare temperature and salinity"
-
----
-
-## 📊 Data Source
+##  Data Source
 
 - **ARGO Program:** Global ocean observation network
 - **ERDDAP Server:** Ifremer (France) / NOAA CoastWatch
 - **Region:** Indian Ocean (50°E-100°E, 20°S-25°N)
 - **Parameters:** Temperature, Salinity, Dissolved Oxygen, Chlorophyll
+
+### Demo Data Details
+| Parameter | Value |
+|-----------|-------|
+| **Records** | 300 |
+| **Floats** | 2902115, 2902116, 2902117, 2903001, 2903002 |
+| **Latitude** | 9.5°N to 18.8°N (Bay of Bengal) |
+| **Longitude** | 81.5°E to 93.5°E |
+| **Depths** | 10m, 50m, 100m, 200m, 500m, 1000m |
+| **Date Range** | Dec 20-30, 2025 |
 
 ---
 
