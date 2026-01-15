@@ -1,159 +1,207 @@
 /**
- * FloatChat - Ocean Intelligence
- * Main Application JavaScript
+ * FloatChart - Ocean Intelligence
+ * Modern Web Application
  */
 
 // ========================================
-// Configuration & State
+// Configuration
 // ========================================
-
-const API_BASE_URL = '';  // Same origin
+const API_BASE = '';
 const HISTORY_KEY = 'floatchat_history';
-const MAX_HISTORY_ITEMS = 20;
+const MAX_HISTORY = 15;
 
-// Application State
+// State
 const state = {
     map: null,
     chart: null,
     markers: [],
     polylines: [],
     currentData: [],
-    queryHistory: [],
+    history: [],
     isLoading: false,
     periods: {},
-    selectedYear: null,
-    selectedMonth: null
+    panelWidth: 380
 };
 
-// ========================================
 // DOM Elements
-// ========================================
-
-const elements = {
-    // Chat Panel
-    chatPanel: document.getElementById('chatPanel'),
-    panelToggle: document.getElementById('panelToggle'),
-    queryInput: document.getElementById('queryInput'),
-    sendBtn: document.getElementById('sendBtn'),
-    chatMessages: document.getElementById('chatMessages'),
-    historyList: document.getElementById('historyList'),
-    clearHistory: document.getElementById('clearHistory'),
-    statusIndicator: document.getElementById('statusIndicator'),
+const $ = (id) => document.getElementById(id);
+const el = {
+    // Main
+    mainContent: $('mainContent'),
+    mapContainer: $('mapContainer'),
+    mapWrapper: $('mapWrapper'),
+    mapInfoBadge: $('mapInfoBadge'),
+    periodYear: $('periodYear'),
+    periodMonth: $('periodMonth'),
+    fullscreenMap: $('fullscreenMap'),
     
-    // Results Panel
-    mapContainer: document.getElementById('mapContainer'),
-    mapSection: document.getElementById('mapSection'),
-    fullscreenMap: document.getElementById('fullscreenMap'),
-    periodYear: document.getElementById('periodYear'),
-    periodMonth: document.getElementById('periodMonth'),
+    // Results
+    resultsPanel: $('resultsPanel'),
+    summaryTabBtn: $('summaryTabBtn'),
+    chartTabBtn: $('chartTabBtn'),
+    tableTabBtn: $('tableTabBtn'),
+    summaryTab: $('summaryTab'),
+    chartTab: $('chartTab'),
+    tableTab: $('tableTab'),
+    summaryContent: $('summaryContent'),
+    statsGrid: $('statsGrid'),
+    sqlToggle: $('sqlToggle'),
+    sqlCode: $('sqlCode'),
+    chartContainer: $('chartContainer'),
+    dataChart: $('dataChart'),
+    tableHead: $('tableHead'),
+    tableBody: $('tableBody'),
+    exportBtn: $('exportBtn'),
+    closeResults: $('closeResults'),
     
-    // Visualization
-    chartContainer: document.getElementById('chartContainer'),
-    tableContainer: document.getElementById('tableContainer'),
-    chartPlaceholder: document.getElementById('chartPlaceholder'),
-    tablePlaceholder: document.getElementById('tablePlaceholder'),
-    dataChart: document.getElementById('dataChart'),
-    tableHead: document.getElementById('tableHead'),
-    tableBody: document.getElementById('tableBody'),
-    chartViewBtn: document.getElementById('chartViewBtn'),
-    tableViewBtn: document.getElementById('tableViewBtn'),
-    exportBtn: document.getElementById('exportBtn'),
-    
-    // Summary
-    summaryContent: document.getElementById('summaryContent'),
-    statsGrid: document.getElementById('statsGrid'),
-    sqlSection: document.getElementById('sqlSection'),
-    sqlToggle: document.getElementById('sqlToggle'),
-    sqlCode: document.getElementById('sqlCode'),
+    // Chat
+    chatPanel: $('chatPanel'),
+    resizeHandle: $('resizeHandle'),
+    panelToggle: $('panelToggle'),
+    chatMessages: $('chatMessages'),
+    dataRangeInfo: $('dataRangeInfo'),
+    historyToggle: $('historyToggle'),
+    historyCount: $('historyCount'),
+    historyList: $('historyList'),
+    clearHistory: $('clearHistory'),
+    queryInput: $('queryInput'),
+    sendBtn: $('sendBtn'),
+    statusIndicator: $('statusIndicator'),
     
     // Overlays
-    loadingOverlay: document.getElementById('loadingOverlay'),
-    toastContainer: document.getElementById('toastContainer')
+    loadingOverlay: $('loadingOverlay'),
+    toastContainer: $('toastContainer')
 };
 
 // ========================================
 // Initialization
 // ========================================
-
 document.addEventListener('DOMContentLoaded', () => {
-    initializeMap();
-    initializeEventListeners();
-    loadQueryHistory();
-    checkApiStatus();
-    loadAvailablePeriods();
+    initMap();
+    initEventListeners();
+    initResizable();
+    loadHistory();
+    checkStatus();
+    loadPeriods();
 });
 
-function initializeMap() {
-    // Initialize Leaflet map centered on Indian Ocean
-    state.map = L.map(elements.mapContainer, {
-        center: [13, 80],
+function initMap() {
+    state.map = L.map(el.mapContainer, {
+        center: [10, 75],
         zoom: 4,
-        zoomControl: true
+        zoomControl: true,
+        attributionControl: false
     });
     
-    // Add dark tile layer
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
         maxZoom: 19
     }).addTo(state.map);
     
-    // Fix map sizing issues
-    setTimeout(() => {
-        state.map.invalidateSize();
-    }, 100);
+    // Add region boundary
+    const bounds = [[−20, 50], [25, 100]];
+    L.rectangle(bounds, {
+        color: '#3b82f6',
+        weight: 1,
+        fillOpacity: 0.05,
+        dashArray: '5, 5'
+    }).addTo(state.map);
 }
 
-function initializeEventListeners() {
-    // Send button click
-    elements.sendBtn.addEventListener('click', handleSendQuery);
+function initEventListeners() {
+    // Quick actions
+    document.querySelectorAll('.quick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const query = btn.dataset.query;
+            el.queryInput.value = query;
+            sendQuery();
+        });
+    });
     
-    // Enter key to send
-    elements.queryInput.addEventListener('keydown', (e) => {
+    // Send button
+    el.sendBtn.addEventListener('click', sendQuery);
+    
+    // Enter to send
+    el.queryInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSendQuery();
+            sendQuery();
         }
     });
     
     // Auto-resize textarea
-    elements.queryInput.addEventListener('input', autoResizeTextarea);
-    
-    // Suggestion buttons
-    document.querySelectorAll('.suggestion-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const query = btn.dataset.query;
-            elements.queryInput.value = query;
-            handleSendQuery();
-        });
+    el.queryInput.addEventListener('input', () => {
+        el.queryInput.style.height = 'auto';
+        el.queryInput.style.height = Math.min(el.queryInput.scrollHeight, 120) + 'px';
     });
     
     // Panel toggle
-    elements.panelToggle.addEventListener('click', toggleChatPanel);
+    el.panelToggle.addEventListener('click', () => {
+        el.chatPanel.classList.toggle('collapsed');
+    });
     
-    // Clear history
-    elements.clearHistory.addEventListener('click', clearQueryHistory);
+    // Tab switching
+    [el.summaryTabBtn, el.chartTabBtn, el.tableTabBtn].forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
     
-    // View toggle (chart/table)
-    elements.chartViewBtn.addEventListener('click', () => switchView('chart'));
-    elements.tableViewBtn.addEventListener('click', () => switchView('table'));
-    
-    // Export button
-    elements.exportBtn.addEventListener('click', exportData);
-    
-    // Fullscreen map
-    elements.fullscreenMap.addEventListener('click', toggleFullscreenMap);
+    // Close results
+    el.closeResults.addEventListener('click', () => {
+        el.resultsPanel.classList.add('hidden');
+    });
     
     // SQL toggle
-    elements.sqlToggle.addEventListener('click', toggleSqlSection);
+    el.sqlToggle.addEventListener('click', () => {
+        el.sqlToggle.classList.toggle('open');
+        el.sqlCode.classList.toggle('hidden');
+    });
     
-    // Period selectors
-    elements.periodYear.addEventListener('change', handlePeriodChange);
-    elements.periodMonth.addEventListener('change', handlePeriodChange);
+    // Export
+    el.exportBtn.addEventListener('click', exportData);
     
-    // Window resize for map
-    window.addEventListener('resize', () => {
-        if (state.map) {
+    // Fullscreen map
+    el.fullscreenMap.addEventListener('click', toggleFullscreen);
+    
+    // History toggle
+    el.historyToggle.addEventListener('click', () => {
+        el.historyList.classList.toggle('hidden');
+        el.clearHistory.classList.toggle('hidden');
+    });
+    
+    // Clear history
+    el.clearHistory.addEventListener('click', clearHistory);
+    
+    // Period selects
+    el.periodYear.addEventListener('change', loadPeriodData);
+    el.periodMonth.addEventListener('change', loadPeriodData);
+}
+
+function initResizable() {
+    let isResizing = false;
+    let startX, startWidth;
+    
+    el.resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = el.chatPanel.offsetWidth;
+        el.resizeHandle.classList.add('dragging');
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const diff = startX - e.clientX;
+        const newWidth = Math.min(Math.max(startWidth + diff, 320), 500);
+        el.chatPanel.style.width = newWidth + 'px';
+        state.panelWidth = newWidth;
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            el.resizeHandle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
             state.map.invalidateSize();
         }
     });
@@ -162,899 +210,521 @@ function initializeEventListeners() {
 // ========================================
 // API Functions
 // ========================================
-
-async function checkApiStatus() {
+async function checkStatus() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/status`);
-        const data = await response.json();
+        const res = await fetch(`${API_BASE}/api/status`);
+        const data = await res.json();
         
-        const statusDot = elements.statusIndicator.querySelector('.status-dot');
-        const statusText = elements.statusIndicator.querySelector('span:last-child');
+        const dot = el.statusIndicator.querySelector('.status-dot');
+        const text = el.statusIndicator.querySelector('.status-text');
         
         if (data.status === 'online' && data.database === 'connected') {
-            statusDot.classList.add('online');
-            statusText.textContent = 'Connected';
+            dot.classList.add('online');
+            text.textContent = 'Connected';
+            
+            // Show data range
+            if (data.data_range) {
+                el.dataRangeInfo.textContent = `📅 Data: ${data.data_range.start} to ${data.data_range.end}`;
+            }
+            if (data.records) {
+                el.dataRangeInfo.textContent += ` • ${data.records.toLocaleString()} records`;
+            }
         } else {
-            statusDot.classList.remove('online');
-            statusText.textContent = 'Disconnected';
+            dot.classList.remove('online');
+            text.textContent = 'Disconnected';
         }
-    } catch (error) {
-        console.error('Status check failed:', error);
-        const statusDot = elements.statusIndicator.querySelector('.status-dot');
-        const statusText = elements.statusIndicator.querySelector('span:last-child');
-        statusDot.classList.remove('online');
-        statusText.textContent = 'Offline';
+    } catch (e) {
+        console.error('Status check failed:', e);
+        el.statusIndicator.querySelector('.status-text').textContent = 'Offline';
     }
 }
 
-async function loadAvailablePeriods() {
+async function loadPeriods() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/available_periods`);
-        const data = await response.json();
+        const res = await fetch(`${API_BASE}/api/available_periods`);
+        const data = await res.json();
         
         if (data.periods) {
             state.periods = data.periods;
-            populatePeriodSelectors();
+            populatePeriodSelects();
         }
-    } catch (error) {
-        console.error('Failed to load periods:', error);
+    } catch (e) {
+        console.error('Failed to load periods:', e);
     }
 }
 
-function populatePeriodSelectors() {
+function populatePeriodSelects() {
     const years = Object.keys(state.periods).sort((a, b) => b - a);
     
-    elements.periodYear.innerHTML = '<option value="">All Years</option>';
+    el.periodYear.innerHTML = '<option value="">All Years</option>';
     years.forEach(year => {
-        const option = document.createElement('option');
-        option.value = year;
-        option.textContent = year;
-        elements.periodYear.appendChild(option);
+        el.periodYear.innerHTML += `<option value="${year}">${year}</option>`;
     });
 }
 
-function handlePeriodChange() {
-    const year = elements.periodYear.value;
-    state.selectedYear = year || null;
+function loadPeriodData() {
+    const year = el.periodYear.value;
+    const month = el.periodMonth.value;
     
-    // Update month options based on selected year
-    elements.periodMonth.innerHTML = '<option value="">All Months</option>';
-    
+    // Update month options based on year
     if (year && state.periods[year]) {
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        state.periods[year].forEach(month => {
-            const option = document.createElement('option');
-            option.value = month;
-            option.textContent = monthNames[month - 1];
-            elements.periodMonth.appendChild(option);
+        const months = state.periods[year].sort((a, b) => a - b);
+        el.periodMonth.innerHTML = '<option value="">All Months</option>';
+        months.forEach(m => {
+            const monthName = new Date(2000, m - 1).toLocaleString('en', { month: 'short' });
+            el.periodMonth.innerHTML += `<option value="${m}">${monthName}</option>`;
         });
     }
-    
-    state.selectedMonth = elements.periodMonth.value || null;
 }
 
-async function sendQuery(query) {
-    showLoading(true);
+async function sendQuery() {
+    const question = el.queryInput.value.trim();
+    if (!question || state.isLoading) return;
+    
+    // Add user message
+    addMessage(question, 'user');
+    el.queryInput.value = '';
+    el.queryInput.style.height = 'auto';
+    
+    // Add to history
+    addToHistory(question);
+    
+    // Show loading
+    setLoading(true);
     
     try {
-        const params = new URLSearchParams({ question: query });
-        if (state.selectedYear) params.append('year', state.selectedYear);
-        if (state.selectedMonth) params.append('month', state.selectedMonth);
+        const params = new URLSearchParams({ question });
+        const year = el.periodYear.value;
+        const month = el.periodMonth.value;
+        if (year) params.append('year', year);
+        if (month) params.append('month', month);
         
-        const response = await fetch(`${API_BASE_URL}/api/query?${params}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            return data;
-        } else {
-            throw new Error(data.error || 'Query failed');
-        }
-    } catch (error) {
-        console.error('Query error:', error);
-        throw error;
-    } finally {
-        showLoading(false);
-    }
-}
-
-// ========================================
-// Query Handling
-// ========================================
-
-async function handleSendQuery() {
-    const query = elements.queryInput.value.trim();
-    
-    if (!query || state.isLoading) return;
-    
-    // Add user message to chat
-    addMessage(query, 'user');
-    elements.queryInput.value = '';
-    autoResizeTextarea();
-    
-    // Save to history
-    addToHistory(query);
-    
-    try {
-        const result = await sendQuery(query);
-        
-        // Process and display results
-        displayResults(result);
+        const res = await fetch(`${API_BASE}/api/query?${params}`);
+        const result = await res.json();
         
         // Add assistant response
-        addMessage(result.summary || 'Query completed successfully.', 'assistant');
+        addMessage(result.summary || 'Query completed', 'assistant');
         
-    } catch (error) {
-        addMessage(`Sorry, there was an error: ${error.message}`, 'assistant', true);
-        showToast('Error', error.message, 'error');
+        // Display results
+        displayResults(result);
+        
+        if (result.data?.length > 0) {
+            showToast('Success', `Found ${result.data.length} records`, 'success');
+        } else {
+            showToast('No Data', result.data_range || 'No records found', 'warning');
+        }
+        
+    } catch (e) {
+        console.error('Query failed:', e);
+        addMessage('Sorry, an error occurred. Please try again.', 'assistant');
+        showToast('Error', 'Query failed', 'error');
     }
+    
+    setLoading(false);
 }
 
+// ========================================
+// Display Functions
+// ========================================
 function displayResults(result) {
     const { query_type, data, summary, sql_query, data_range } = result;
-    
     state.currentData = data || [];
     
     // Update map
     updateMap(data, query_type);
     
-    // Update visualization
-    updateVisualization(data, query_type);
+    // Show results panel
+    el.resultsPanel.classList.remove('hidden');
     
-    // Update summary with data range info
-    const fullSummary = data_range ? `${summary}\n\n📅 ${data_range}` : summary;
-    updateSummary(fullSummary, query_type, data);
+    // Update summary
+    let summaryHtml = `<p>${summary || 'Query completed'}</p>`;
+    if (data_range) {
+        summaryHtml += `<p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">📅 ${data_range}</p>`;
+    }
+    el.summaryContent.innerHTML = summaryHtml;
+    
+    // Update stats
+    updateStats(data, query_type);
     
     // Update SQL
     if (sql_query) {
-        elements.sqlCode.textContent = sql_query;
+        el.sqlCode.textContent = sql_query;
     }
     
-    // Show success toast
-    if (data && data.length > 0) {
-        showToast('Success', `Found ${data.length} records`, 'success');
-    } else {
-        showToast('No Data', data_range || 'No records found', 'warning');
-    }
+    // Update chart
+    updateChart(data, query_type);
+    
+    // Update table
+    updateTable(data);
+    
+    // Switch to summary tab
+    switchTab('summary');
 }
 
-// ========================================
-// Map Functions
-// ========================================
+function updateStats(data, queryType) {
+    if (!data || data.length === 0) {
+        el.statsGrid.innerHTML = '';
+        return;
+    }
+    
+    const stats = [];
+    
+    // Record count
+    stats.push({ label: 'Records', value: data.length.toLocaleString() });
+    
+    // Unique floats
+    const floats = new Set(data.map(d => d.float_id)).size;
+    if (floats > 0) stats.push({ label: 'Floats', value: floats });
+    
+    // Temperature
+    const temps = data.filter(d => d.temperature != null).map(d => d.temperature);
+    if (temps.length > 0) {
+        const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+        stats.push({ label: 'Avg Temp', value: avgTemp.toFixed(2) + '°C' });
+    }
+    
+    // Salinity
+    const sals = data.filter(d => d.salinity != null).map(d => d.salinity);
+    if (sals.length > 0) {
+        const avgSal = sals.reduce((a, b) => a + b, 0) / sals.length;
+        stats.push({ label: 'Avg Salinity', value: avgSal.toFixed(2) + ' PSU' });
+    }
+    
+    el.statsGrid.innerHTML = stats.map(s => `
+        <div class="stat-card">
+            <div class="stat-label">${s.label}</div>
+            <div class="stat-value">${s.value}</div>
+        </div>
+    `).join('');
+}
 
 function updateMap(data, queryType) {
-    // Clear existing markers and polylines
-    state.markers.forEach(marker => marker.remove());
-    state.polylines.forEach(polyline => polyline.remove());
+    // Clear existing
+    state.markers.forEach(m => m.remove());
+    state.polylines.forEach(p => p.remove());
     state.markers = [];
     state.polylines = [];
     
     if (!data || data.length === 0) {
-        state.map.setView([13, 80], 4);
+        state.map.setView([10, 75], 4);
         return;
     }
     
-    // Create custom marker icon
-    const floatIcon = L.divIcon({
-        className: 'float-marker-icon',
-        iconSize: [14, 14]
-    });
-    
     const bounds = L.latLngBounds();
     
-    // Group data by float_id for trajectories
+    // Trajectory
     if (queryType === 'Trajectory') {
+        const path = data.map(d => [d.latitude, d.longitude]);
+        const polyline = L.polyline(path, {
+            color: '#3b82f6',
+            weight: 3,
+            opacity: 0.8
+        }).addTo(state.map);
+        state.polylines.push(polyline);
+        
+        // Start/end markers
+        if (path.length > 0) {
+            const startMarker = L.circleMarker(path[0], {
+                radius: 8, fillColor: '#22c55e', fillOpacity: 1, color: 'white', weight: 2
+            }).bindPopup('Start').addTo(state.map);
+            
+            const endMarker = L.circleMarker(path[path.length - 1], {
+                radius: 8, fillColor: '#ef4444', fillOpacity: 1, color: 'white', weight: 2
+            }).bindPopup('End').addTo(state.map);
+            
+            state.markers.push(startMarker, endMarker);
+        }
+        
+        path.forEach(p => bounds.extend(p));
+    } else {
+        // Group by float
         const floatGroups = {};
-        data.forEach(point => {
-            const fid = point.float_id;
-            if (!floatGroups[fid]) floatGroups[fid] = [];
-            floatGroups[fid].push(point);
+        data.forEach(d => {
+            if (d.latitude && d.longitude) {
+                const key = d.float_id || 'unknown';
+                if (!floatGroups[key]) floatGroups[key] = [];
+                floatGroups[key].push(d);
+            }
         });
         
         Object.entries(floatGroups).forEach(([floatId, points]) => {
-            // Sort by timestamp
-            points.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            
-            // Create polyline
-            const latLngs = points.map(p => [p.latitude, p.longitude]);
-            const polyline = L.polyline(latLngs, {
-                color: '#2E8BFF',
-                weight: 3,
-                opacity: 0.8
+            const latest = points[points.length - 1];
+            const marker = L.circleMarker([latest.latitude, latest.longitude], {
+                radius: 6,
+                fillColor: '#3b82f6',
+                fillOpacity: 0.9,
+                color: 'white',
+                weight: 2
             }).addTo(state.map);
-            state.polylines.push(polyline);
             
-            // Add markers at start and end
-            if (points.length > 0) {
-                const startMarker = L.marker([points[0].latitude, points[0].longitude], { icon: floatIcon })
-                    .bindPopup(createPopupContent(points[0], 'Start'))
-                    .addTo(state.map);
-                state.markers.push(startMarker);
-                bounds.extend([points[0].latitude, points[0].longitude]);
-                
-                if (points.length > 1) {
-                    const endPoint = points[points.length - 1];
-                    const endMarker = L.marker([endPoint.latitude, endPoint.longitude], { icon: floatIcon })
-                        .bindPopup(createPopupContent(endPoint, 'End'))
-                        .addTo(state.map);
-                    state.markers.push(endMarker);
-                    bounds.extend([endPoint.latitude, endPoint.longitude]);
-                }
-            }
-        });
-    } else {
-        // Add markers for each data point (limit to 100 for performance)
-        const displayData = data.slice(0, 100);
-        displayData.forEach((point, index) => {
-            if (point.latitude && point.longitude) {
-                const marker = L.marker([point.latitude, point.longitude], { icon: floatIcon })
-                    .bindPopup(createPopupContent(point))
-                    .addTo(state.map);
-                state.markers.push(marker);
-                bounds.extend([point.latitude, point.longitude]);
-            }
+            marker.bindPopup(`
+                <strong>Float ${floatId}</strong><br>
+                Lat: ${latest.latitude?.toFixed(4)}<br>
+                Lon: ${latest.longitude?.toFixed(4)}<br>
+                ${latest.temperature ? `Temp: ${latest.temperature.toFixed(2)}°C<br>` : ''}
+                ${latest.salinity ? `Sal: ${latest.salinity.toFixed(2)} PSU` : ''}
+            `);
+            
+            state.markers.push(marker);
+            bounds.extend([latest.latitude, latest.longitude]);
         });
     }
     
-    // Fit map to bounds
-    if (state.markers.length > 0 || state.polylines.length > 0) {
+    if (bounds.isValid()) {
         state.map.fitBounds(bounds, { padding: [50, 50] });
     }
 }
 
-function createPopupContent(point, label = '') {
-    let content = `<div style="font-size: 13px;">`;
-    
-    if (label) {
-        content += `<strong>${label}</strong><br>`;
-    }
-    
-    if (point.float_id) {
-        content += `<strong>Float ID:</strong> ${point.float_id}<br>`;
-    }
-    if (point.timestamp) {
-        content += `<strong>Time:</strong> ${formatTimestamp(point.timestamp)}<br>`;
-    }
-    if (point.latitude !== undefined) {
-        content += `<strong>Lat:</strong> ${point.latitude.toFixed(4)}<br>`;
-    }
-    if (point.longitude !== undefined) {
-        content += `<strong>Lon:</strong> ${point.longitude.toFixed(4)}<br>`;
-    }
-    if (point.distance_km !== undefined) {
-        content += `<strong>Distance:</strong> ${point.distance_km.toFixed(2)} km<br>`;
-    }
-    if (point.temperature !== undefined && point.temperature !== null) {
-        content += `<strong>Temp:</strong> ${point.temperature.toFixed(2)} °C<br>`;
-    }
-    if (point.salinity !== undefined && point.salinity !== null) {
-        content += `<strong>Salinity:</strong> ${point.salinity.toFixed(2)} PSU<br>`;
-    }
-    
-    content += `</div>`;
-    return content;
-}
-
-function toggleFullscreenMap() {
-    elements.mapSection.classList.toggle('fullscreen');
-    setTimeout(() => {
-        state.map.invalidateSize();
-    }, 300);
-}
-
-// ========================================
-// Visualization Functions
-// ========================================
-
-function updateVisualization(data, queryType) {
-    if (!data || data.length === 0) {
-        elements.chartPlaceholder.classList.remove('hidden');
-        elements.tablePlaceholder.classList.remove('hidden');
-        return;
-    }
-    
-    elements.chartPlaceholder.classList.add('hidden');
-    elements.tablePlaceholder.classList.add('hidden');
-    
-    // Update chart
-    updateChart(data, queryType);
-    
-    // Update table
-    updateTable(data);
-}
-
 function updateChart(data, queryType) {
-    // Destroy existing chart
     if (state.chart) {
         state.chart.destroy();
+        state.chart = null;
     }
     
-    const ctx = elements.dataChart.getContext('2d');
+    if (!data || data.length === 0) return;
     
-    // Determine chart type and configuration based on query type
-    let chartConfig;
+    const ctx = el.dataChart.getContext('2d');
     
-    if (queryType === 'Profile') {
-        chartConfig = createProfileChart(data);
-    } else if (queryType === 'Time-Series') {
-        chartConfig = createTimeSeriesChart(data);
-    } else if (queryType === 'Trajectory') {
-        chartConfig = createTrajectoryChart(data);
-    } else {
-        chartConfig = createDefaultChart(data);
-    }
-    
-    state.chart = new Chart(ctx, chartConfig);
-}
-
-function createProfileChart(data) {
-    const sensorColumns = ['temperature', 'salinity', 'dissolved_oxygen', 'chlorophyll'];
-    const datasets = [];
-    const colors = ['#2E8BFF', '#6C5CE7', '#2E7D32', '#FFB020'];
-    
-    sensorColumns.forEach((col, index) => {
-        if (data[0] && data[0][col] !== undefined) {
-            datasets.push({
-                label: formatColumnName(col),
-                data: data.map(d => ({ x: d[col], y: d.pressure || 0 })),
-                borderColor: colors[index % colors.length],
-                backgroundColor: colors[index % colors.length] + '40',
-                borderWidth: 2,
-                pointRadius: 3,
-                fill: false
-            });
-        }
-    });
-    
-    return {
-        type: 'line',
-        data: { datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: 'y',
-            scales: {
-                y: {
-                    reverse: true,
-                    title: { display: true, text: 'Pressure (dbar)', color: '#8A98A8' },
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8' }
-                },
-                x: {
-                    title: { display: true, text: 'Value', color: '#8A98A8' },
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8' }
-                }
+    // Profile chart (pressure vs temp/sal)
+    if (queryType === 'Profile' || data[0]?.pressure != null) {
+        const sorted = [...data].sort((a, b) => (a.pressure || 0) - (b.pressure || 0));
+        
+        state.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sorted.map(d => d.pressure?.toFixed(0) || ''),
+                datasets: [
+                    {
+                        label: 'Temperature (°C)',
+                        data: sorted.map(d => d.temperature),
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.3,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Salinity (PSU)',
+                        data: sorted.map(d => d.salinity),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.3,
+                        yAxisID: 'y1'
+                    }
+                ]
             },
-            plugins: {
-                legend: { labels: { color: '#E6EDF3' } },
-                title: { display: true, text: 'Depth Profile', color: '#E6EDF3' }
-            }
-        }
-    };
-}
-
-function createTimeSeriesChart(data) {
-    const sensorColumns = ['temperature', 'salinity', 'dissolved_oxygen', 'chlorophyll'];
-    const datasets = [];
-    const colors = ['#2E8BFF', '#6C5CE7', '#2E7D32', '#FFB020'];
-    
-    const sortedData = [...data].sort((a, b) => new Date(a.day || a.timestamp) - new Date(b.day || b.timestamp));
-    const labels = sortedData.map(d => formatTimestamp(d.day || d.timestamp, true));
-    
-    sensorColumns.forEach((col, index) => {
-        if (data[0] && data[0][col] !== undefined) {
-            datasets.push({
-                label: formatColumnName(col),
-                data: sortedData.map(d => d[col]),
-                borderColor: colors[index % colors.length],
-                backgroundColor: colors[index % colors.length] + '40',
-                borderWidth: 2,
-                pointRadius: 2,
-                fill: true,
-                tension: 0.3
-            });
-        }
-    });
-    
-    return {
-        type: 'line',
-        data: { labels, datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8' }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { color: '#94a3b8' } }
                 },
-                x: {
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8', maxRotation: 45 }
+                scales: {
+                    x: { title: { display: true, text: 'Pressure (dbar)', color: '#94a3b8' }, ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { position: 'left', title: { display: true, text: 'Temp (°C)', color: '#ef4444' }, ticks: { color: '#ef4444' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y1: { position: 'right', title: { display: true, text: 'Salinity (PSU)', color: '#3b82f6' }, ticks: { color: '#3b82f6' }, grid: { display: false } }
                 }
-            },
-            plugins: {
-                legend: { labels: { color: '#E6EDF3' } },
-                title: { display: true, text: 'Time Series', color: '#E6EDF3' }
             }
-        }
-    };
-}
-
-function createTrajectoryChart(data) {
-    // For trajectory, show position over time or distance
-    const sortedData = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    return {
-        type: 'scatter',
-        data: {
-            datasets: [{
-                label: 'Float Trajectory',
-                data: sortedData.map(d => ({ x: d.longitude, y: d.latitude })),
-                borderColor: '#2E8BFF',
-                backgroundColor: '#2E8BFF',
-                pointRadius: 4,
-                showLine: true,
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    title: { display: true, text: 'Latitude', color: '#8A98A8' },
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8' }
-                },
-                x: {
-                    title: { display: true, text: 'Longitude', color: '#8A98A8' },
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8' }
-                }
-            },
-            plugins: {
-                legend: { labels: { color: '#E6EDF3' } },
-                title: { display: true, text: 'Trajectory (Lat/Lon)', color: '#E6EDF3' }
-            }
-        }
-    };
-}
-
-function createDefaultChart(data) {
-    // Find numeric columns for bar chart
-    const numericColumns = Object.keys(data[0] || {}).filter(key => {
-        return typeof data[0][key] === 'number' && 
-               !['latitude', 'longitude', 'float_id', 'pressure'].includes(key);
-    });
-    
-    if (numericColumns.length === 0) {
-        return createCountChart(data);
-    }
-    
-    const labels = data.slice(0, 20).map((d, i) => d.float_id || `Record ${i + 1}`);
-    const datasets = [];
-    const colors = ['#2E8BFF', '#6C5CE7', '#2E7D32', '#FFB020'];
-    
-    numericColumns.slice(0, 4).forEach((col, index) => {
-        datasets.push({
-            label: formatColumnName(col),
-            data: data.slice(0, 20).map(d => d[col]),
-            backgroundColor: colors[index % colors.length] + '80',
-            borderColor: colors[index % colors.length],
-            borderWidth: 1
         });
-    });
-    
-    return {
-        type: 'bar',
-        data: { labels, datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8' }
+    } else {
+        // Time series or scatter
+        const hasTime = data.some(d => d.timestamp);
+        
+        if (hasTime) {
+            const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            state.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sorted.map(d => new Date(d.timestamp).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Temperature (°C)',
+                        data: sorted.map(d => d.temperature),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
                 },
-                x: {
-                    grid: { color: '#2E3843' },
-                    ticks: { color: '#8A98A8' }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                    }
                 }
-            },
-            plugins: {
-                legend: { labels: { color: '#E6EDF3' } }
-            }
+            });
         }
-    };
-}
-
-function createCountChart(data) {
-    return {
-        type: 'doughnut',
-        data: {
-            labels: ['Records Found'],
-            datasets: [{
-                data: [data.length],
-                backgroundColor: ['#2E8BFF'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: '#E6EDF3' } },
-                title: {
-                    display: true,
-                    text: `Total Records: ${data.length}`,
-                    color: '#E6EDF3',
-                    font: { size: 16 }
-                }
-            }
-        }
-    };
+    }
 }
 
 function updateTable(data) {
     if (!data || data.length === 0) {
-        elements.tableHead.innerHTML = '';
-        elements.tableBody.innerHTML = '';
+        el.tableHead.innerHTML = '';
+        el.tableBody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);">No data</td></tr>';
         return;
     }
     
     // Get columns
-    const columns = Object.keys(data[0]);
+    const columns = Object.keys(data[0]).filter(k => !k.startsWith('_'));
     
-    // Create header
-    elements.tableHead.innerHTML = `
-        <tr>
-            ${columns.map(col => `<th>${formatColumnName(col)}</th>`).join('')}
-        </tr>
-    `;
+    // Header
+    el.tableHead.innerHTML = '<tr>' + columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
     
-    // Create body (limit to 100 rows)
-    elements.tableBody.innerHTML = data.slice(0, 100).map(row => `
-        <tr>
-            ${columns.map(col => `<td>${formatCellValue(row[col], col)}</td>`).join('')}
-        </tr>
-    `).join('');
+    // Body (limit to 100 rows)
+    const rows = data.slice(0, 100);
+    el.tableBody.innerHTML = rows.map(row => 
+        '<tr>' + columns.map(c => {
+            let val = row[c];
+            if (val == null) return '<td>-</td>';
+            if (typeof val === 'number') val = val.toFixed(4);
+            if (typeof val === 'string' && val.includes('T')) {
+                val = new Date(val).toLocaleString();
+            }
+            return `<td>${val}</td>`;
+        }).join('') + '</tr>'
+    ).join('');
 }
 
-function switchView(view) {
-    if (view === 'chart') {
-        elements.chartContainer.classList.remove('hidden');
-        elements.tableContainer.classList.add('hidden');
-        elements.chartViewBtn.classList.add('active');
-        elements.tableViewBtn.classList.remove('active');
-    } else {
-        elements.chartContainer.classList.add('hidden');
-        elements.tableContainer.classList.remove('hidden');
-        elements.chartViewBtn.classList.remove('active');
-        elements.tableViewBtn.classList.add('active');
-    }
-}
-
-// ========================================
-// Summary Functions
-// ========================================
-
-function updateSummary(summary, queryType, data) {
-    // Update summary text
-    const isError = queryType === 'Error';
-    elements.summaryContent.innerHTML = `
-        <p class="summary-text ${isError ? 'error' : ''}">${summary || 'No summary available.'}</p>
-    `;
-    
-    // Update stats cards
-    updateStatsCards(data, queryType);
-}
-
-function updateStatsCards(data, queryType) {
-    elements.statsGrid.innerHTML = '';
-    
-    if (!data || data.length === 0) return;
-    
-    // Add record count
-    addStatCard('Records', data.length, '');
-    
-    // Calculate stats for numeric columns
-    const numericColumns = ['temperature', 'salinity', 'dissolved_oxygen', 'chlorophyll', 'distance_km'];
-    
-    numericColumns.forEach(col => {
-        const values = data.map(d => d[col]).filter(v => v !== null && v !== undefined && !isNaN(v));
-        
-        if (values.length > 0) {
-            const avg = values.reduce((a, b) => a + b, 0) / values.length;
-            const unit = getUnit(col);
-            addStatCard(`Avg ${formatColumnName(col)}`, avg.toFixed(2), unit);
-        }
+function switchTab(tab) {
+    // Update buttons
+    [el.summaryTabBtn, el.chartTabBtn, el.tableTabBtn].forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
     });
     
-    // Add unique floats count
-    const uniqueFloats = new Set(data.map(d => d.float_id).filter(Boolean)).size;
-    if (uniqueFloats > 0) {
-        addStatCard('Unique Floats', uniqueFloats, '');
-    }
-}
-
-function addStatCard(label, value, unit) {
-    const card = document.createElement('div');
-    card.className = 'stat-card';
-    card.innerHTML = `
-        <div class="stat-label">${label}</div>
-        <div class="stat-value">${value}<span class="stat-unit">${unit}</span></div>
-    `;
-    elements.statsGrid.appendChild(card);
-}
-
-function toggleSqlSection() {
-    elements.sqlSection.classList.toggle('collapsed');
+    // Update content
+    [el.summaryTab, el.chartTab, el.tableTab].forEach(content => {
+        content.classList.toggle('active', content.id === tab + 'Tab');
+    });
 }
 
 // ========================================
-// Chat Functions
+// Message Functions
 // ========================================
-
-function addMessage(text, type, isError = false) {
-    // Remove welcome message if present
-    const welcome = elements.chatMessages.querySelector('.welcome-message');
-    if (welcome) welcome.remove();
-    
-    const message = document.createElement('div');
-    message.className = `message ${type}`;
-    
-    const avatar = type === 'user' ? '👤' : '🌊';
-    
-    message.innerHTML = `
-        <div class="message-avatar">${avatar}</div>
-        <div class="message-content ${isError ? 'error' : ''}">${text}</div>
-    `;
-    
-    elements.chatMessages.appendChild(message);
-    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
-}
-
-function toggleChatPanel() {
-    elements.chatPanel.classList.toggle('collapsed');
-    
-    // Update toggle icon direction
-    const icon = elements.panelToggle.querySelector('svg');
-    if (elements.chatPanel.classList.contains('collapsed')) {
-        icon.style.transform = 'rotate(180deg)';
-    } else {
-        icon.style.transform = 'rotate(0deg)';
+function addMessage(text, type) {
+    // Remove welcome message
+    const welcome = el.chatMessages.querySelector('.welcome-msg');
+    if (welcome && type === 'user') {
+        welcome.style.display = 'none';
     }
     
-    // Resize map after panel toggle
-    setTimeout(() => {
-        if (state.map) state.map.invalidateSize();
-    }, 300);
-}
-
-function autoResizeTextarea() {
-    const textarea = elements.queryInput;
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    const msg = document.createElement('div');
+    msg.className = `message ${type}`;
+    msg.innerHTML = `
+        <p>${text}</p>
+        <span class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+    `;
+    
+    el.chatMessages.appendChild(msg);
+    el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
 }
 
 // ========================================
 // History Functions
 // ========================================
-
-function loadQueryHistory() {
+function loadHistory() {
     try {
-        const saved = localStorage.getItem(HISTORY_KEY);
-        state.queryHistory = saved ? JSON.parse(saved) : [];
+        state.history = JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
         renderHistory();
-    } catch (error) {
-        console.error('Failed to load history:', error);
-        state.queryHistory = [];
+    } catch (e) {
+        state.history = [];
     }
 }
 
 function addToHistory(query) {
-    // Remove duplicate if exists
-    state.queryHistory = state.queryHistory.filter(h => h.query !== query);
+    // Remove duplicates
+    state.history = state.history.filter(h => h.query !== query);
     
-    // Add to beginning
-    state.queryHistory.unshift({
-        query,
-        timestamp: new Date().toISOString()
-    });
+    // Add to front
+    state.history.unshift({ query, time: Date.now() });
     
-    // Limit history size
-    if (state.queryHistory.length > MAX_HISTORY_ITEMS) {
-        state.queryHistory = state.queryHistory.slice(0, MAX_HISTORY_ITEMS);
-    }
+    // Limit
+    state.history = state.history.slice(0, MAX_HISTORY);
     
-    // Save and render
-    saveHistory();
+    // Save
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history));
     renderHistory();
-}
-
-function saveHistory() {
-    try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(state.queryHistory));
-    } catch (error) {
-        console.error('Failed to save history:', error);
-    }
 }
 
 function renderHistory() {
-    elements.historyList.innerHTML = state.queryHistory.slice(0, 10).map(item => `
-        <div class="history-item" onclick="useHistoryQuery('${escapeHtml(item.query)}')">
-            <span class="query-text">${escapeHtml(item.query)}</span>
-            <span class="query-time">${formatRelativeTime(item.timestamp)}</span>
-        </div>
-    `).join('');
+    el.historyCount.textContent = state.history.length;
+    
+    el.historyList.innerHTML = state.history.map(h => 
+        `<div class="history-item" data-query="${h.query}">${h.query}</div>`
+    ).join('');
+    
+    // Click handlers
+    el.historyList.querySelectorAll('.history-item').forEach(item => {
+        item.addEventListener('click', () => {
+            el.queryInput.value = item.dataset.query;
+            sendQuery();
+        });
+    });
 }
 
-function useHistoryQuery(query) {
-    elements.queryInput.value = query;
-    elements.queryInput.focus();
-}
-
-function clearQueryHistory() {
-    state.queryHistory = [];
-    saveHistory();
+function clearHistory() {
+    state.history = [];
+    localStorage.removeItem(HISTORY_KEY);
     renderHistory();
-    showToast('History Cleared', 'Your query history has been cleared.', 'success');
+    showToast('History Cleared', '', 'success');
 }
 
 // ========================================
-// Export Functions
+// Utility Functions
 // ========================================
-
-function exportData() {
-    if (!state.currentData || state.currentData.length === 0) {
-        showToast('No Data', 'There is no data to export.', 'warning');
-        return;
-    }
-    
-    // Convert to CSV
-    const columns = Object.keys(state.currentData[0]);
-    const header = columns.join(',');
-    const rows = state.currentData.map(row => 
-        columns.map(col => {
-            let val = row[col];
-            if (val === null || val === undefined) return '';
-            if (typeof val === 'string' && val.includes(',')) return `"${val}"`;
-            return val;
-        }).join(',')
-    );
-    
-    const csv = [header, ...rows].join('\n');
-    
-    // Download
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `floatchat_export_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showToast('Export Complete', `Exported ${state.currentData.length} records to CSV.`, 'success');
-}
-
-// ========================================
-// UI Utility Functions
-// ========================================
-
-function showLoading(show) {
-    state.isLoading = show;
-    elements.loadingOverlay.classList.toggle('hidden', !show);
-    elements.sendBtn.disabled = show;
+function setLoading(loading) {
+    state.isLoading = loading;
+    el.loadingOverlay.classList.toggle('hidden', !loading);
+    el.sendBtn.disabled = loading;
 }
 
 function showToast(title, message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.innerHTML = `
-        <div class="toast-content">
+        <div>
             <div class="toast-title">${title}</div>
-            <div class="toast-message">${message}</div>
+            ${message ? `<div class="toast-message">${message}</div>` : ''}
         </div>
-        <button class="toast-close" onclick="this.parentElement.remove()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-        </button>
     `;
     
-    elements.toastContainer.appendChild(toast);
+    el.toastContainer.appendChild(toast);
     
-    // Auto-remove after 5 seconds
     setTimeout(() => {
-        if (toast.parentElement) {
-            toast.remove();
-        }
-    }, 5000);
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
 }
 
-// ========================================
-// Formatting Utilities
-// ========================================
-
-function formatColumnName(col) {
-    return col
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, l => l.toUpperCase());
-}
-
-function formatCellValue(value, column) {
-    if (value === null || value === undefined) return '-';
-    
-    if (column === 'timestamp' || column === 'day') {
-        return formatTimestamp(value);
+function exportData() {
+    if (!state.currentData.length) {
+        showToast('No Data', 'Nothing to export', 'warning');
+        return;
     }
     
-    if (typeof value === 'number') {
-        if (column === 'latitude' || column === 'longitude') {
-            return value.toFixed(4);
-        }
-        return value.toFixed(2);
+    const headers = Object.keys(state.currentData[0]);
+    const csv = [
+        headers.join(','),
+        ...state.currentData.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `floatchart_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showToast('Exported', `${state.currentData.length} records`, 'success');
+}
+
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        el.mapWrapper.requestFullscreen();
+    } else {
+        document.exitFullscreen();
     }
-    
-    return value;
 }
-
-function formatTimestamp(ts, short = false) {
-    if (!ts) return '-';
-    
-    const date = new Date(ts);
-    if (isNaN(date.getTime())) return ts;
-    
-    if (short) {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-    
-    return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-function formatRelativeTime(timestamp) {
-    const now = new Date();
-    const then = new Date(timestamp);
-    const diffMs = now - then;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    
-    return then.toLocaleDateString();
-}
-
-function getUnit(column) {
-    const units = {
-        temperature: '°C',
-        salinity: 'PSU',
-        dissolved_oxygen: 'μmol/kg',
-        chlorophyll: 'mg/m³',
-        pressure: 'dbar',
-        distance_km: 'km'
-    };
-    return units[column] || '';
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Make useHistoryQuery available globally
-window.useHistoryQuery = useHistoryQuery;
