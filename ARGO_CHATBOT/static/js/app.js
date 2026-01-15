@@ -33,7 +33,6 @@ const el = {
     mapInfoBadge: $('mapInfoBadge'),
     fullscreenMap: $('fullscreenMap'),
     openChatBtn: $('openChatBtn'),
-    mapExplorerBtn: $('mapExplorerBtn'),
     
     // Results
     resultsPanel: $('resultsPanel'),
@@ -75,9 +74,6 @@ const el = {
     loadingOverlay: $('loadingOverlay'),
     toastContainer: $('toastContainer')
 };
-
-// Map Explorer State
-let mapExplorerActive = false;
 // ========================================
 // Initialization
 // ========================================
@@ -99,15 +95,6 @@ function initMap() {
     
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 19
-    }).addTo(state.map);
-    
-    // Add region boundary (Indian Ocean: lat -20 to 25, lon 50 to 100)
-    const bounds = [[-20, 50], [25, 100]];
-    L.rectangle(bounds, {
-        color: '#3b82f6',
-        weight: 1,
-        fillOpacity: 0.05,
-        dashArray: '5, 5'
     }).addTo(state.map);
     
     // Invalidate size after render
@@ -188,9 +175,6 @@ function initEventListeners() {
     
     // Clear history
     el.clearHistory.addEventListener('click', clearHistory);
-    
-    // Map Explorer toggle
-    el.mapExplorerBtn.addEventListener('click', toggleMapExplorer);
     
     // Chart type and axis changes
     el.chartTypeSelect.addEventListener('change', () => updateChart(state.currentData, state.currentQueryType));
@@ -873,68 +857,4 @@ function toggleFullscreen() {
     }
 }
 
-// ========================================
-// Map Explorer (Click to find floats)
-// ========================================
-function toggleMapExplorer() {
-    mapExplorerActive = !mapExplorerActive;
-    el.mapExplorerBtn.classList.toggle('active', mapExplorerActive);
-    el.mapExplorerBtn.querySelector('span').textContent = mapExplorerActive ? 'Click Map...' : 'Click to Explore';
-    
-    if (mapExplorerActive) {
-        el.mapContainer.style.cursor = 'crosshair';
-        state.map.on('click', onMapClick);
-        showToast('Map Explorer', 'Click anywhere on the map to find nearby floats', 'info');
-    } else {
-        el.mapContainer.style.cursor = '';
-        state.map.off('click', onMapClick);
-    }
-}
-
-async function onMapClick(e) {
-    const { lat, lng } = e.latlng;
-    
-    // Add a temporary marker
-    const clickMarker = L.circleMarker([lat, lng], {
-        radius: 10,
-        fillColor: '#f59e0b',
-        fillOpacity: 0.8,
-        color: 'white',
-        weight: 2
-    }).addTo(state.map);
-    
-    clickMarker.bindPopup(`<strong>Searching...</strong><br>Lat: ${lat.toFixed(4)}<br>Lon: ${lng.toFixed(4)}`).openPopup();
-    
-    // Query for nearby floats
-    setLoading(true);
-    
-    try {
-        const question = `Find ARGO floats within 200km of latitude ${lat.toFixed(2)} longitude ${lng.toFixed(2)}`;
-        addMessage(`🗺️ Exploring: ${lat.toFixed(4)}, ${lng.toFixed(4)}`, 'user');
-        
-        const params = new URLSearchParams({ question });
-        const res = await fetch(`${API_BASE}/api/query?${params}`);
-        const result = await res.json();
-        
-        // Remove click marker
-        clickMarker.remove();
-        
-        // Display results
-        if (result.data?.length > 0) {
-            addMessage(result.summary || `Found ${result.data.length} nearby records`, 'assistant');
-            displayResults(result);
-            showToast('Found', `${result.data.length} records nearby`, 'success');
-        } else {
-            addMessage(result.summary || 'No floats found in this area', 'assistant');
-            showToast('No Data', result.data_range || 'No floats found nearby', 'warning');
-        }
-        
-    } catch (e) {
-        clickMarker.remove();
-        console.error('Map query failed:', e);
-        addMessage('Error searching this location', 'assistant');
-        showToast('Error', 'Search failed', 'error');
-    }
-    
-    setLoading(false);
-}
+// Map Explorer functionality moved to separate /map page

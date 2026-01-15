@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Map - FloatChart</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        /* Interactive Map Page Styles */
+        .map-page {
+            display: flex;
+            height: 100vh;
+            background: var(--bg-main);
+        }
+        
+        .map-main {
+            flex: 1;
+            position: relative;
+        }
+        
+        .map-full {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Top Bar */
+        .map-topbar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 400px;
+            display: flex;
+            gap: 12px;
+            z-index: 1000;
+        }
+        
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--bg-panel);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .back-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+        
+        .map-instructions {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: var(--accent);
+            border-radius: var(--radius);
+            color: white;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .map-instructions svg {
+            flex-shrink: 0;
+        }
+        
+        /* Data Panel */
+        .data-panel {
+            width: 400px;
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .float-badge {
+            padding: 4px 10px;
+            background: var(--accent);
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state svg {
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .empty-state h3 {
+            color: var(--text-secondary);
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        
+        .empty-state p {
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        /* Float Info */
+        .float-info {
+            margin-bottom: 20px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        
+        .info-item {
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+        
+        .info-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        /* Profile Chart */
+        .profile-section {
+            margin-top: 20px;
+        }
+        
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .profile-chart {
+            height: 200px;
+            background: var(--bg-card);
+            border-radius: var(--radius-sm);
+            padding: 10px;
+        }
+        
+        /* Trajectory Info */
+        .trajectory-section {
+            margin-top: 20px;
+        }
+        
+        .trajectory-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .traj-stat {
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: var(--radius-sm);
+            text-align: center;
+        }
+        
+        .traj-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .traj-stat-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+        
+        /* Action Buttons */
+        .panel-actions {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+        }
+        
+        .action-button {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        
+        .action-button:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+        
+        .action-button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        .action-button.primary:hover {
+            background: var(--accent-hover);
+        }
+        
+        /* Click Marker Popup */
+        .leaflet-popup-content-wrapper {
+            background: var(--bg-panel);
+            color: var(--text-primary);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .leaflet-popup-content {
+            margin: 12px 16px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .leaflet-popup-tip {
+            background: var(--bg-panel);
+        }
+        
+        .popup-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--accent);
+        }
+        
+        .popup-info {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        
+        /* Nearby Floats List */
+        .nearby-floats {
+            margin-top: 16px;
+        }
+        
+        .float-item {
+            padding: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .float-item:hover {
+            border-color: var(--accent);
+            background: var(--bg-hover);
+        }
+        
+        .float-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        
+        .float-item-id {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .float-item-distance {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        .float-item-details {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        /* Loading State */
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 12px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        /* Status Indicator */
+        .map-status {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-panel);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 12px;
+            color: var(--text-secondary);
+            z-index: 1000;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        
+        .status-dot.online {
+            background: var(--success);
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="map-page">
+        <!-- Main Map Area -->
+        <div class="map-main">
+            <div class="map-full" id="interactiveMap"></div>
+            
+            <!-- Top Bar -->
+            <div class="map-topbar">
+                <a href="/" class="back-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 12H5m7-7-7 7 7 7"/>
+                    </svg>
+                    Back to Chat
+                </a>
+                <div class="map-instructions">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/>
+                    </svg>
+                    Click anywhere on the map to find nearby ARGO floats and view their data
+                </div>
+            </div>
+            
+            <!-- Status -->
+            <div class="map-status" id="mapStatus">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </div>
+        
+        <!-- Data Panel -->
+        <div class="data-panel">
+            <div class="panel-header">
+                <span class="panel-title" id="panelTitle">Float Data</span>
+                <span class="float-badge hidden" id="floatBadge"></span>
+            </div>
+            
+            <div class="panel-content" id="panelContent">
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v4l2.5 2.5"/>
+                    </svg>
+                    <h3>Click on the Map</h3>
+                    <p>Select a location on the map to discover nearby ARGO floats and explore their oceanographic data.</p>
+                </div>
+                
+                <!-- Loading State -->
+                <div class="loading-spinner hidden" id="loadingState">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Searching for floats...</div>
+                </div>
+                
+                <!-- Float Data -->
+                <div class="float-data hidden" id="floatData">
+                    <!-- Nearby Floats -->
+                    <div class="nearby-floats" id="nearbyFloats">
+                        <div class="section-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            Nearby Floats
+                        </div>
+                        <div id="floatList"></div>
+                    </div>
+                    
+                    <!-- Float Info (shown when float selected) -->
+                    <div class="float-info hidden" id="floatInfo">
+                        <div class="section-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4m0-4h.01"/>
+                            </svg>
+                            Float Details
+                        </div>
+                        <div class="info-grid" id="infoGrid"></div>
+                    </div>
+                    
+                    <!-- Profile Chart -->
+                    <div class="profile-section hidden" id="profileSection">
+                        <div class="section-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 20V10m-6 10V4M6 20v-6"/>
+                            </svg>
+                            Depth Profile
+                        </div>
+                        <div class="profile-chart">
+                            <canvas id="profileChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Trajectory Stats -->
+                    <div class="trajectory-section hidden" id="trajectorySection">
+                        <div class="section-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                            </svg>
+                            Trajectory
+                        </div>
+                        <div class="trajectory-stats" id="trajectoryStats"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="panel-actions hidden" id="panelActions">
+                <button class="action-button" id="viewTrajectoryBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    Trajectory
+                </button>
+                <button class="action-button" id="viewProfileBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 20V10m-6 10V4M6 20v-6"/>
+                    </svg>
+                    Profile
+                </button>
+                <button class="action-button primary" id="exportBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4m4-5l5 5 5-5m-5 5V3"/>
+                    </svg>
+                    Export
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ========================================
+        // Interactive Map Explorer
+        // ========================================
+        
+        const API_BASE = '';
+        let map, chart;
+        let markers = [];
+        let trajectoryPath = null;
+        let clickMarker = null;
+        let currentFloatData = [];
+        let selectedFloatId = null;
+        
+        // DOM Elements
+        const $ = id => document.getElementById(id);
+        const el = {
+            map: $('interactiveMap'),
+            statusDot: $('statusDot'),
+            statusText: $('statusText'),
+            panelTitle: $('panelTitle'),
+            floatBadge: $('floatBadge'),
+            panelContent: $('panelContent'),
+            emptyState: $('emptyState'),
+            loadingState: $('loadingState'),
+            floatData: $('floatData'),
+            nearbyFloats: $('nearbyFloats'),
+            floatList: $('floatList'),
+            floatInfo: $('floatInfo'),
+            infoGrid: $('infoGrid'),
+            profileSection: $('profileSection'),
+            profileChart: $('profileChart'),
+            trajectorySection: $('trajectorySection'),
+            trajectoryStats: $('trajectoryStats'),
+            panelActions: $('panelActions'),
+            viewTrajectoryBtn: $('viewTrajectoryBtn'),
+            viewProfileBtn: $('viewProfileBtn'),
+            exportBtn: $('exportBtn')
+        };
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            checkStatus();
+            initEventListeners();
+        });
+        
+        function initMap() {
+            map = L.map(el.map, {
+                center: [10, 75],
+                zoom: 5,
+                zoomControl: true,
+                attributionControl: false
+            });
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Map click handler
+            map.on('click', onMapClick);
+        }
+        
+        function initEventListeners() {
+            el.viewTrajectoryBtn.addEventListener('click', showTrajectory);
+            el.viewProfileBtn.addEventListener('click', showProfile);
+            el.exportBtn.addEventListener('click', exportData);
+        }
+        
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/api/status`);
+                const data = await res.json();
+                
+                if (data.status === 'online' && data.database === 'connected') {
+                    el.statusDot.classList.add('online');
+                    el.statusText.textContent = `Connected • ${data.records?.toLocaleString() || 0} records`;
+                } else {
+                    el.statusText.textContent = 'Disconnected';
+                }
+            } catch (e) {
+                el.statusText.textContent = 'Offline';
+            }
+        }
+        
+        async function onMapClick(e) {
+            const { lat, lng } = e.latlng;
+            
+            // Clear previous markers
+            clearMarkers();
+            
+            // Add click marker
+            clickMarker = L.circleMarker([lat, lng], {
+                radius: 12,
+                fillColor: '#f59e0b',
+                fillOpacity: 0.9,
+                color: 'white',
+                weight: 3
+            }).addTo(map);
+            
+            clickMarker.bindPopup(`
+                <div class="popup-title">Searching...</div>
+                <div class="popup-info">
+                    Lat: ${lat.toFixed(4)}<br>
+                    Lon: ${lng.toFixed(4)}
+                </div>
+            `).openPopup();
+            
+            // Show loading
+            showLoading();
+            
+            // Query for nearby floats
+            try {
+                const question = `Find ARGO floats within 300km of latitude ${lat.toFixed(2)} longitude ${lng.toFixed(2)}`;
+                const params = new URLSearchParams({ question });
+                const res = await fetch(`${API_BASE}/api/query?${params}`);
+                const result = await res.json();
+                
+                currentFloatData = result.data || [];
+                
+                // Update click marker popup
+                clickMarker.setPopupContent(`
+                    <div class="popup-title">Location</div>
+                    <div class="popup-info">
+                        Lat: ${lat.toFixed(4)}<br>
+                        Lon: ${lng.toFixed(4)}<br>
+                        <strong>${currentFloatData.length} records found</strong>
+                    </div>
+                `);
+                
+                if (currentFloatData.length > 0) {
+                    displayNearbyFloats(currentFloatData);
+                    plotFloatMarkers(currentFloatData);
+                } else {
+                    showEmptyResult();
+                }
+                
+            } catch (e) {
+                console.error('Query failed:', e);
+                showError();
+            }
+        }
+        
+        function clearMarkers() {
+            markers.forEach(m => m.remove());
+            markers = [];
+            if (trajectoryPath) {
+                trajectoryPath.remove();
+                trajectoryPath = null;
+            }
+        }
+        
+        function showLoading() {
+            el.emptyState.classList.add('hidden');
+            el.floatData.classList.add('hidden');
+            el.loadingState.classList.remove('hidden');
+            el.panelActions.classList.add('hidden');
+        }
+        
+        function showEmptyResult() {
+            el.loadingState.classList.add('hidden');
+            el.floatData.classList.add('hidden');
+            el.emptyState.classList.remove('hidden');
+            el.emptyState.querySelector('h3').textContent = 'No Floats Found';
+            el.emptyState.querySelector('p').textContent = 'Try clicking on a different location in the ocean. The data covers the Indian Ocean region.';
+        }
+        
+        function showError() {
+            el.loadingState.classList.add('hidden');
+            el.emptyState.classList.remove('hidden');
+            el.emptyState.querySelector('h3').textContent = 'Error';
+            el.emptyState.querySelector('p').textContent = 'Failed to fetch data. Please try again.';
+        }
+        
+        function displayNearbyFloats(data) {
+            el.loadingState.classList.add('hidden');
+            el.emptyState.classList.add('hidden');
+            el.floatData.classList.remove('hidden');
+            el.nearbyFloats.classList.remove('hidden');
+            el.floatInfo.classList.add('hidden');
+            el.profileSection.classList.add('hidden');
+            el.trajectorySection.classList.add('hidden');
+            
+            // Group by float_id
+            const floatGroups = {};
+            data.forEach(d => {
+                const id = d.float_id || 'unknown';
+                if (!floatGroups[id]) floatGroups[id] = [];
+                floatGroups[id].push(d);
+            });
+            
+            el.panelTitle.textContent = `${Object.keys(floatGroups).length} Floats Found`;
+            
+            // Create float list
+            el.floatList.innerHTML = Object.entries(floatGroups).map(([id, points]) => {
+                const latest = points[points.length - 1];
+                const avgTemp = points.reduce((a, b) => a + (b.temperature || 0), 0) / points.length;
+                return `
+                    <div class="float-item" data-float-id="${id}">
+                        <div class="float-item-header">
+                            <span class="float-item-id">Float ${id}</span>
+                            <span class="float-item-distance">${points.length} records</span>
+                        </div>
+                        <div class="float-item-details">
+                            Lat: ${latest.latitude?.toFixed(3)} | Lon: ${latest.longitude?.toFixed(3)}
+                            ${avgTemp ? ` | Avg: ${avgTemp.toFixed(1)}°C` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add click handlers
+            el.floatList.querySelectorAll('.float-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const floatId = item.dataset.floatId;
+                    selectFloat(floatId, floatGroups[floatId]);
+                });
+            });
+        }
+        
+        function plotFloatMarkers(data) {
+            const floatGroups = {};
+            data.forEach(d => {
+                if (d.latitude && d.longitude) {
+                    const id = d.float_id || 'unknown';
+                    if (!floatGroups[id]) floatGroups[id] = [];
+                    floatGroups[id].push(d);
+                }
+            });
+            
+            Object.entries(floatGroups).forEach(([id, points]) => {
+                const latest = points[points.length - 1];
+                const marker = L.circleMarker([latest.latitude, latest.longitude], {
+                    radius: 8,
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.9,
+                    color: 'white',
+                    weight: 2
+                }).addTo(map);
+                
+                marker.bindPopup(`
+                    <div class="popup-title">Float ${id}</div>
+                    <div class="popup-info">
+                        Lat: ${latest.latitude?.toFixed(4)}<br>
+                        Lon: ${latest.longitude?.toFixed(4)}<br>
+                        ${latest.temperature ? `Temp: ${latest.temperature.toFixed(2)}°C<br>` : ''}
+                        ${latest.salinity ? `Sal: ${latest.salinity.toFixed(2)} PSU` : ''}
+                    </div>
+                `);
+                
+                marker.on('click', () => selectFloat(id, points));
+                markers.push(marker);
+            });
+        }
+        
+        function selectFloat(floatId, points) {
+            selectedFloatId = floatId;
+            
+            // Update UI
+            el.floatBadge.textContent = `Float ${floatId}`;
+            el.floatBadge.classList.remove('hidden');
+            el.panelTitle.textContent = 'Float Details';
+            el.nearbyFloats.classList.add('hidden');
+            el.floatInfo.classList.remove('hidden');
+            el.panelActions.classList.remove('hidden');
+            
+            // Show info
+            const latest = points[points.length - 1];
+            el.infoGrid.innerHTML = `
+                <div class="info-item">
+                    <div class="info-label">Float ID</div>
+                    <div class="info-value">${floatId}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Records</div>
+                    <div class="info-value">${points.length}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Latitude</div>
+                    <div class="info-value">${latest.latitude?.toFixed(4)}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Longitude</div>
+                    <div class="info-value">${latest.longitude?.toFixed(4)}</div>
+                </div>
+                ${latest.temperature ? `
+                <div class="info-item">
+                    <div class="info-label">Temperature</div>
+                    <div class="info-value">${latest.temperature.toFixed(2)}°C</div>
+                </div>` : ''}
+                ${latest.salinity ? `
+                <div class="info-item">
+                    <div class="info-label">Salinity</div>
+                    <div class="info-value">${latest.salinity.toFixed(2)} PSU</div>
+                </div>` : ''}
+            `;
+            
+            // Center map on float
+            map.setView([latest.latitude, latest.longitude], 7);
+        }
+        
+        async function showTrajectory() {
+            if (!selectedFloatId) return;
+            
+            // Query for trajectory
+            try {
+                const question = `Show trajectory of float ${selectedFloatId}`;
+                const params = new URLSearchParams({ question });
+                const res = await fetch(`${API_BASE}/api/query?${params}`);
+                const result = await res.json();
+                
+                if (result.data?.length > 1) {
+                    // Clear existing path
+                    if (trajectoryPath) trajectoryPath.remove();
+                    
+                    // Sort by time and create path
+                    const sorted = result.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    const pathPoints = sorted.map(d => [d.latitude, d.longitude]);
+                    
+                    trajectoryPath = L.polyline(pathPoints, {
+                        color: '#3b82f6',
+                        weight: 3,
+                        opacity: 0.8
+                    }).addTo(map);
+                    
+                    // Add start/end markers
+                    L.circleMarker(pathPoints[0], {
+                        radius: 8, fillColor: '#22c55e', fillOpacity: 1, color: 'white', weight: 2
+                    }).addTo(map).bindPopup('Start');
+                    
+                    L.circleMarker(pathPoints[pathPoints.length - 1], {
+                        radius: 8, fillColor: '#ef4444', fillOpacity: 1, color: 'white', weight: 2
+                    }).addTo(map).bindPopup('End');
+                    
+                    // Calculate distance
+                    let totalDistance = 0;
+                    for (let i = 1; i < pathPoints.length; i++) {
+                        totalDistance += haversine(pathPoints[i-1][0], pathPoints[i-1][1], pathPoints[i][0], pathPoints[i][1]);
+                    }
+                    
+                    // Show trajectory stats
+                    el.trajectorySection.classList.remove('hidden');
+                    el.trajectoryStats.innerHTML = `
+                        <div class="traj-stat">
+                            <div class="traj-stat-value">${totalDistance.toFixed(0)}</div>
+                            <div class="traj-stat-label">km traveled</div>
+                        </div>
+                        <div class="traj-stat">
+                            <div class="traj-stat-value">${pathPoints.length}</div>
+                            <div class="traj-stat-label">data points</div>
+                        </div>
+                    `;
+                    
+                    map.fitBounds(trajectoryPath.getBounds(), { padding: [50, 50] });
+                }
+            } catch (e) {
+                console.error('Trajectory query failed:', e);
+            }
+        }
+        
+        async function showProfile() {
+            if (!selectedFloatId) return;
+            
+            try {
+                const question = `Get profile data for float ${selectedFloatId}`;
+                const params = new URLSearchParams({ question });
+                const res = await fetch(`${API_BASE}/api/query?${params}`);
+                const result = await res.json();
+                
+                if (result.data?.length > 0 && result.data[0].pressure != null) {
+                    el.profileSection.classList.remove('hidden');
+                    
+                    // Destroy existing chart
+                    if (chart) chart.destroy();
+                    
+                    const sorted = result.data.sort((a, b) => (a.pressure || 0) - (b.pressure || 0));
+                    
+                    chart = new Chart(el.profileChart.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: sorted.map(d => d.pressure?.toFixed(0)),
+                            datasets: [
+                                {
+                                    label: 'Temp (°C)',
+                                    data: sorted.map(d => d.temperature),
+                                    borderColor: '#ef4444',
+                                    tension: 0.3,
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Salinity',
+                                    data: sorted.map(d => d.salinity),
+                                    borderColor: '#3b82f6',
+                                    tension: 0.3,
+                                    yAxisID: 'y1'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+                            scales: {
+                                x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                                y: { position: 'left', ticks: { color: '#ef4444' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                                y1: { position: 'right', ticks: { color: '#3b82f6' }, grid: { display: false } }
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Profile query failed:', e);
+            }
+        }
+        
+        function exportData() {
+            if (!currentFloatData.length) return;
+            
+            const headers = Object.keys(currentFloatData[0]);
+            const csv = [
+                headers.join(','),
+                ...currentFloatData.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
+            ].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `float_${selectedFloatId || 'data'}_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Haversine distance
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+    </script>
+</body>
+</html>

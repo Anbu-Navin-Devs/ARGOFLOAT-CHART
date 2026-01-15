@@ -86,6 +86,11 @@ def serve_index():
     """Serve the main web application."""
     return send_from_directory(STATIC_DIR, 'index.html')
 
+@app.route('/map')
+def serve_map():
+    """Serve the interactive map explorer page."""
+    return send_from_directory(STATIC_DIR, 'map.html')
+
 @app.route('/static/<path:path>')
 def serve_static(path):
     """Serve static files (CSS, JS, images)."""
