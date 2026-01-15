@@ -1,76 +1,102 @@
 # 🌊 FloatChart – AI-Powered Ocean Intelligence Platform
 
-An AI-powered web application for querying and visualizing ARGO float oceanographic data using natural language. Features interactive maps, dynamic charts, and a data pipeline for fetching real-time ocean observations from the Indian Ocean region.
+<div align="center">
+
+![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python)
+![Flask](https://img.shields.io/badge/Flask-3.0-green?style=for-the-badge&logo=flask)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-purple?style=for-the-badge&logo=supabase)
+![LangChain](https://img.shields.io/badge/LangChain-AI-orange?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+
+**An AI-powered web application for querying and visualizing ARGO float oceanographic data using natural language.**
+
+[🌐 Live Demo](https://argofloat-chart.onrender.com) • [📖 Documentation](#-features) • [🚀 Quick Start](#-quick-start)
+
+</div>
 
 ---
 
-## 🌐 Live Demo
+## 📋 Table of Contents
 
-**Try it now:** [https://floatchat.onrender.com](https://floatchat.onrender.com)
-
-> ⚠️ **Demo Limitations:** The live demo uses sample data (300 records, 5 floats) for demonstration. For full real-time ARGO data (1000s of records), set up locally.
-
----
-
-## 📋 Demo vs Local Comparison
-
-| Feature | 🌐 Live Demo | 💻 Local Setup |
-|---------|--------------|----------------|
-| **Data** | 300 sample records | 1000s of real records |
-| **Floats** | 5 demo floats | All Indian Ocean floats |
-| **Date Range** | Dec 20-30, 2025 | Full historical data |
-| **Location** | Bay of Bengal region | Entire Indian Ocean |
-| **Data Updates** | Static sample data | Real-time ERDDAP fetch |
-| **Best For** | Quick preview | Research & full analysis |
+- [Overview](#-overview)
+- [Features](#-features)
+- [Live Demo](#-live-demo)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Quick Start](#-quick-start)
+- [Sample Queries](#-sample-queries)
+- [API Reference](#-api-reference)
+- [Data Coverage](#-data-coverage)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-## 💬 Sample Questions to Ask
+## 🌐 Overview
 
-### ✅ Works on Demo (Try These!)
+**FloatChart** is an intelligent oceanographic data platform that allows users to query over **1.5 million ARGO float records** using natural language. The system leverages AI (LLM) to interpret user questions, generate SQL queries, and present results through interactive visualizations.
 
-```
-📍 Location Queries:
-• "Show all ARGO floats"
-• "List float locations"
-• "Where are the floats?"
-
-📊 Data Analysis:
-• "What is the average temperature?"
-• "Show temperature data"
-• "Get salinity measurements"
-• "Show data at 100m depth"
-
-🔢 Specific Float:
-• "Show float 2902115"
-• "Trajectory of float 2902116"
-• "Data from float 2903001"
-
-📈 Trends:
-• "Temperature trends"
-• "Compare temperature and salinity"
-• "Show temperature vs depth"
-```
-
-### ⚠️ Limited on Demo (Works better locally)
-
-```
-• "Nearest floats to Chennai" (demo floats are offshore)
-• "Data from Arabian Sea" (demo data is in Bay of Bengal)
-• "Historical data from 2020" (demo only has Dec 2025)
-• "Show all floats in Mumbai area" (no floats near Mumbai in demo)
-```
+### What are ARGO Floats?
+ARGO floats are autonomous profiling instruments that drift with ocean currents, diving to depths of 2000m and measuring temperature, salinity, and pressure. Over 4,000 floats are currently deployed worldwide, providing critical data for climate research and oceanography.
 
 ---
 
 ## ✨ Features
 
-- 💬 **Natural Language Queries** - Ask questions like "Show temperature trends in Arabian Sea"
-- 🗺️ **Interactive Map** - Leaflet.js with float location markers
-- 📊 **Dynamic Charts** - Temperature, salinity, depth visualizations
-- 📋 **Data Tables** - Browse, filter, and export results
-- ⬇️ **CSV Export** - Download query results
-- 🤖 **AI-Powered** - Uses Groq (LLaMA 3.3) for intelligent query processing
+| Feature | Description |
+|---------|-------------|
+| 💬 **Natural Language Queries** | Ask questions in plain English - no SQL knowledge required |
+| 🗺️ **Interactive Map Explorer** | Click anywhere on the ocean to find nearby floats |
+| 📊 **Dynamic Visualizations** | Temperature, salinity, and depth charts with multiple view options |
+| 📈 **Float Trajectories** | Track float movement paths over time |
+| 🔍 **Proximity Search** | Find floats near any coastal city or coordinates |
+| 📋 **Data Tables** | Browse, filter, and export query results |
+| ⬇️ **CSV Export** | Download data for offline analysis |
+| 🌡️ **Real-time Stats** | Temperature, salinity averages, and float counts |
+
+---
+
+## 🌐 Live Demo
+
+**🔗 [https://argofloat-chart.onrender.com](https://argofloat-chart.onrender.com)**
+
+### Database Statistics
+| Metric | Value |
+|--------|-------|
+| **Total Records** | 1,513,324+ |
+| **Date Range** | January 2020 - June 2026 |
+| **Coverage** | Global (Pacific, Atlantic, Indian Ocean, Mediterranean, Caribbean) |
+| **Metrics** | Temperature, Salinity, Pressure, Dissolved Oxygen |
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+| Technology | Purpose |
+|------------|---------|
+| **Python 3.10+** | Core programming language |
+| **Flask 3.0** | Web framework |
+| **LangChain** | AI/LLM orchestration |
+| **Groq (LLaMA 3.3-70B)** | Fast LLM inference |
+| **Google Gemini** | Fallback LLM provider |
+| **SQLAlchemy** | Database ORM |
+| **Supabase PostgreSQL** | Cloud database |
+
+### Frontend
+| Technology | Purpose |
+|------------|---------|
+| **HTML5/CSS3** | Modern responsive design |
+| **JavaScript (ES6+)** | Interactive functionality |
+| **Leaflet.js** | Interactive maps |
+| **Chart.js** | Data visualizations |
+
+### Deployment
+| Service | Purpose |
+|---------|---------|
+| **Render** | Cloud hosting platform |
+| **Gunicorn** | WSGI server |
+| **GitHub** | Version control |
 
 ---
 
@@ -78,158 +104,265 @@ An AI-powered web application for querying and visualizing ARGO float oceanograp
 
 ```
 ARGOFLOAT-CHART/
-├── ARGO_CHATBOT/          # 🌐 Web Application (Deployed)
-│   ├── app.py             # Flask server
-│   ├── brain.py           # AI/NLP processing (Groq)
-│   ├── sql_builder.py     # Query generation
-│   ├── Procfile           # Deployment config
-│   └── static/            # Frontend (HTML/CSS/JS)
 │
-└── DATA_GENERATOR/        # 🖥️ Desktop App (Local Only)
-    ├── gui.py             # Tkinter GUI
-    └── pipeline/          # ETL modules for ERDDAP data
+├── 📂 ARGO_CHATBOT/              # Main Web Application
+│   ├── app.py                    # Flask server & API routes
+│   ├── brain.py                  # AI/NLP processing with LangChain
+│   ├── sql_builder.py            # Dynamic SQL query generation
+│   ├── database_utils.py         # Database connection utilities
+│   ├── requirements.txt          # Python dependencies
+│   ├── Procfile                  # Render deployment config
+│   │
+│   └── 📂 static/                # Frontend Assets
+│       ├── index.html            # Main chat interface
+│       ├── map.html              # Interactive map explorer
+│       ├── 📂 css/
+│       │   └── styles.css        # Global styles (glassmorphism)
+│       └── 📂 js/
+│           └── app.js            # Frontend JavaScript
+│
+├── 📂 DATA_GENERATOR/            # Data Management (Optional)
+│   ├── gui.py                    # Desktop GUI for data updates
+│   ├── config.py                 # Configuration settings
+│   └── update_manager.py         # Data synchronization
+│
+├── README.md                     # Project documentation
+├── LICENSE                       # MIT License
+└── .gitignore                    # Git ignore rules
 ```
 
 ---
 
-## 💻 Local Setup (Full Data Access)
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.10+
-- PostgreSQL 14+
+- Python 3.10 or higher
 - Git
 
-### Quick Start
+### Installation
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/Anbu-2006/ARGOFLOAT-CHART.git
 cd ARGOFLOAT-CHART
 
-# 2. Create virtual environment
+# 2. Navigate to the chatbot directory
+cd ARGO_CHATBOT
+
+# 3. Create virtual environment
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/Mac
 
-# 3. Setup PostgreSQL database
-# Create database 'argo_db' and run the SQL from schema below
+# 4. Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
 
-# 4. Configure environment
-copy .env.example .env
-# Edit .env with your DATABASE_URL and GROQ_API_KEY
-
-# 5. Run Data Generator (fetch real ARGO data)
-cd DATA_GENERATOR
+# 5. Install dependencies
 pip install -r requirements.txt
-python gui.py  # Click "Update Latest Data"
 
-# 6. Run Web Application
-cd ../ARGO_CHATBOT
-pip install -r requirements.txt
+# 6. Run the application
 python app.py
-# Open http://127.0.0.1:5000
 ```
 
-### Database Schema
+### Environment Variables
 
-```sql
-CREATE TABLE argo_data (
-    id SERIAL PRIMARY KEY,
-    float_id INTEGER NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
-    pressure DOUBLE PRECISION,
-    temperature DOUBLE PRECISION,
-    salinity DOUBLE PRECISION,
-    dissolved_oxygen DOUBLE PRECISION,
-    chlorophyll DOUBLE PRECISION
-);
-
-CREATE INDEX idx_argo_float_id ON argo_data(float_id);
-CREATE INDEX idx_argo_timestamp ON argo_data(timestamp);
-```
-
----
-
-## ⚙️ Environment Variables
-
-Create a `.env` file with:
+Create a `.env` file in the `ARGO_CHATBOT` folder:
 
 ```env
-# Database
-DATABASE_URL=postgresql+psycopg2://postgres:password@localhost:5432/argo_db
+# Database (Required)
+DATABASE_URL=postgresql://user:password@host:5432/database
 
-# AI (Groq - FREE)
+# LLM Provider (At least one required)
 GROQ_API_KEY=your_groq_api_key
+GOOGLE_API_KEY=your_google_api_key
+
+# Optional Settings
 GROQ_MODEL_NAME=llama-3.3-70b-versatile
 ```
 
-**Get your FREE API key:** [console.groq.com/keys](https://console.groq.com/keys)
+### Access the Application
+
+Open your browser and navigate to:
+```
+http://localhost:5000
+```
 
 ---
 
-## 🌐 Deployment (For Developers)
+## 💬 Sample Queries
 
-The web app is deployed on **Render** with **Supabase** database.
+### 📍 Location-Based Queries
+```
+• "Find 5 nearest floats to Chennai"
+• "Show floats in Bay of Bengal"
+• "Floats near Mumbai"
+• "Data from Arabian Sea"
+• "Floats around Kollam"
+```
 
-### Deployment Stack
-- **Hosting:** [Render](https://render.com) (Free tier)
-- **Database:** [Supabase](https://supabase.com) (Free tier)
-- **AI:** [Groq](https://groq.com) (Free tier)
+### 🌡️ Data Analysis
+```
+• "Average temperature in Indian Ocean"
+• "Maximum salinity in Pacific Ocean"
+• "Temperature trends in 2024"
+• "Compare temperature and salinity"
+```
 
-### To Deploy Your Own:
-1. Fork this repository
-2. Create Supabase project and database
-3. Create Render web service pointing to `ARGO_CHATBOT/`
-4. Set environment variables on Render
-5. Deploy!
+### 🔢 Specific Float Queries
+```
+• "Show data for float 2902115"
+• "Trajectory of float 5907083"
+• "All records from float 2700917"
+```
 
----
+### 📊 Statistical Queries
+```
+• "How many floats are in the database?"
+• "Count floats in Mediterranean Sea"
+• "Average temperature this year"
+```
 
-##  Data Source
+### Supported Locations
 
-- **ARGO Program:** Global ocean observation network
-- **ERDDAP Server:** Ifremer (France) / NOAA CoastWatch
-- **Region:** Indian Ocean (50°E-100°E, 20°S-25°N)
-- **Parameters:** Temperature, Salinity, Dissolved Oxygen, Chlorophyll
-
-### Demo Data Details
-| Parameter | Value |
-|-----------|-------|
-| **Records** | 300 |
-| **Floats** | 2902115, 2902116, 2902117, 2903001, 2903002 |
-| **Latitude** | 9.5°N to 18.8°N (Bay of Bengal) |
-| **Longitude** | 81.5°E to 93.5°E |
-| **Depths** | 10m, 50m, 100m, 200m, 500m, 1000m |
-| **Date Range** | Dec 20-30, 2025 |
-
----
-
-## 🛠️ Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| Backend | Flask, SQLAlchemy |
-| Frontend | HTML5, CSS3, JavaScript |
-| Database | PostgreSQL |
-| AI/LLM | Groq (LLaMA 3.3 70B) |
-| Maps | Leaflet.js |
-| Charts | Chart.js |
-| Deployment | Render + Supabase |
+| Category | Locations |
+|----------|-----------|
+| **Indian Ocean** | Arabian Sea, Bay of Bengal, Andaman Sea, Laccadive Sea, Red Sea, Persian Gulf |
+| **Pacific Ocean** | South China Sea, Philippine Sea, Coral Sea, Tasman Sea |
+| **Atlantic Ocean** | Caribbean Sea, Gulf of Mexico, Mediterranean Sea, North Sea |
+| **Indian Cities** | Chennai, Mumbai, Kollam, Kochi, Goa, Kolkata, Vizag, Mangalore, Tuticorin, Pondicherry, Trivandrum, Surat, Kandla, Paradip, Port Blair |
+| **International** | Singapore, Tokyo, Sydney, Cape Town, Miami, Maldives, Mauritius, Sri Lanka |
 
 ---
 
-## 📝 License
+## 📡 API Reference
 
-MIT License - see [LICENSE](LICENSE) file.
+### Base URL
+```
+https://argofloat-chart.onrender.com/api
+```
+
+### Endpoints
+
+#### `GET /api/status`
+Check server and database status.
+
+**Response:**
+```json
+{
+  "status": "online",
+  "database": "connected",
+  "records": 1513324,
+  "timestamp": "2026-01-16T12:00:00Z"
+}
+```
+
+#### `POST /api/query`
+Process a natural language query.
+
+**Request:**
+```json
+{
+  "query": "Find 5 nearest floats to Chennai"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "query_type": "Proximity",
+  "sql": "SELECT ... FROM argo_data ...",
+  "data": [...],
+  "summary": "Found 5 floats near Chennai...",
+  "chart_type": "map"
+}
+```
 
 ---
 
-## 👤 Author
+## 🗺️ Data Coverage
 
-**Anbu** - [GitHub](https://github.com/Anbu-2006)
+### Geographic Distribution
+
+| Region | Records | Coverage |
+|--------|---------|----------|
+| Indian Ocean | 400,000+ | Full coverage |
+| Pacific Ocean | 450,000+ | Extensive coverage |
+| Atlantic Ocean | 350,000+ | Good coverage |
+| Mediterranean | 150,000+ | Complete coverage |
+| Southern Ocean | 100,000+ | Antarctic waters |
+| Caribbean Sea | 50,000+ | Regional coverage |
+
+### Temporal Coverage
+- **Start Date:** January 2020
+- **End Date:** June 2026
+- **Total Span:** 6+ years of oceanographic data
+
+### Data Schema
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `float_id` | Integer | Unique ARGO float identifier |
+| `timestamp` | DateTime | Observation date/time (UTC) |
+| `latitude` | Float | Geographic latitude (-90 to 90) |
+| `longitude` | Float | Geographic longitude (-180 to 180) |
+| `temperature` | Float | Water temperature in Celsius |
+| `salinity` | Float | Salinity in PSU |
+| `pressure` | Float | Depth pressure in dbar |
+| `dissolved_oxygen` | Float | Oxygen concentration (μmol/kg) |
 
 ---
 
-Made with 💙 for Ocean Science 🌊
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Development Guidelines
+- Follow PEP 8 for Python code
+- Use meaningful commit messages
+- Add comments for complex logic
+- Update documentation as needed
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **[ARGO Program](https://argo.ucsd.edu/)** - Global ocean observation network
+- **[ERDDAP](https://coastwatch.pfeg.noaa.gov/erddap/)** - Oceanographic data distribution
+- **[Groq](https://groq.com/)** - Fast LLM inference
+- **[Supabase](https://supabase.com/)** - Managed PostgreSQL hosting
+- **[Render](https://render.com/)** - Cloud deployment platform
+- **[LangChain](https://langchain.com/)** - LLM application framework
+
+---
+
+## 📞 Contact
+
+| | |
+|---|---|
+| **Developer** | Anbu |
+| **GitHub** | [@Anbu-2006](https://github.com/Anbu-2006) |
+| **Project** | [ARGOFLOAT-CHART](https://github.com/Anbu-2006/ARGOFLOAT-CHART) |
+
+---
+
+<div align="center">
+
+### 🌊 Made with ❤️ for Ocean Research
+
+**⭐ Star this repo if you find it helpful!**
+
+</div>
