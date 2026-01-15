@@ -383,30 +383,45 @@ body {
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
     margin-bottom: 16px;
 }
 
 .stat-card {
-    padding: 14px;
+    padding: 12px;
     background: var(--bg-card);
     border-radius: var(--radius);
     border: 1px solid var(--border);
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
 }
 
 .stat-label {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .stat-value {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--accent);
+}
+
+.stat-subtext {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
 }
 
 /* SQL Section */

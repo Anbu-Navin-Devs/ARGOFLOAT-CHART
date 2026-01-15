@@ -133,54 +133,66 @@ def get_database_context(engine):
         print(f"CRITICAL ERROR: Could not get database context. {e}"); return None
 
 INTENT_PARSER_PROMPT = """
-You are an expert AI at parsing user requests into a structured JSON format. Your goal is to dissect a user's question and provide a clean plan for another script to build a SQL query.
+You are an expert oceanographic data analyst. Parse the user's question into a structured JSON for SQL query generation.
 
-First, think step-by-step about the user's request, identifying all the key components.
-Then, based on your thinking, provide a single JSON object with the extracted fields.
+SUPPORTED QUERY TYPES:
+- "Statistic": For averages, max/min, counts (e.g., "average temperature", "how many floats")
+- "Proximity": Finding floats near a location (e.g., "floats near Chennai", "nearest to Bay of Bengal")
+- "Trajectory": Path/movement of a specific float (e.g., "trajectory of float 2902115", "path of float")
+- "Profile": Depth profile data (e.g., "depth profile", "temperature vs pressure")
+- "Time-Series": Data over time (e.g., "temperature trend", "salinity from Jan to March")
+- "Scatter": Comparing two variables (e.g., "temperature vs salinity")
+- "General": Default for exploration queries
 
-Here are the fields to extract:
-- "query_type": Must be one of ["Statistic", "Proximity", "Trajectory", "Profile", "Time-Series", "Scatter", "General"].
-- "metrics": List of sensor variables mentioned (e.g., ["temperature", "salinity", "dissolved oxygen"]).
-- "location_name": Name of a geographic location (e.g., "chennai", "arabian sea", "equator").
-- "time_constraint": String describing the time filter (e.g., "in March in 2024").
-- "distance_km": String containing a distance limit (e.g., "within 700 km").
-- "aggregation": If a statistic is requested, the function to use (e.g., "avg", "max", "min", "count"). For "count unique floats", use "count". For "maximum", use "max".
-- "float_id": The integer ID of a float if mentioned.
-- "limit": An integer limit if mentioned (e.g., "top 5").
+SUPPORTED LOCATIONS:
+Indian Ocean: arabian sea, bay of bengal, indian ocean, andaman sea, laccadive sea, red sea, persian gulf, mozambique channel
+Pacific Ocean: pacific ocean, south china sea, philippine sea, coral sea, tasman sea
+Atlantic Ocean: atlantic ocean, caribbean sea, gulf of mexico, mediterranean sea, north sea
+Cities: chennai, mumbai, sri lanka, singapore, tokyo, sydney, cape town, miami
+Special: equator, tropics, southern ocean
+
+EXTRACT THESE FIELDS:
+- "query_type": One of the types above
+- "metrics": List from ["temperature", "salinity", "dissolved_oxygen", "pressure"]
+- "location_name": Geographic location (lowercase)
+- "time_constraint": Time filter (e.g., "2023", "March 2024", "from 2020 to 2022")
+- "distance_km": Distance limit in km (integer)
+- "aggregation": "avg", "max", "min", or "count"
+- "float_id": Integer float ID if mentioned
+- "limit": Result limit (integer)
+- "year": Specific year if mentioned (integer)
 
 User Question: "{question}"
 
-Think step-by-step here:
-1.  What is the user's primary goal? (e.g., finding something nearby, calculating a statistic, plotting a trend). This determines the `query_type`.
-2.  What specific measurements are they asking about? These are the `metrics`.
-3.  Is a specific place mentioned? This is the `location_name`.
-4.  Is there a time filter? This is the `time_constraint`.
-5.  What kind of statistic (average, maximum, count)? This is the `aggregation`.
-
-Now, based on your thoughts, provide the final JSON object. Return ONLY the JSON object.
+Return ONLY a valid JSON object with the extracted fields. Omit fields that aren't applicable.
 """
 
 SUMMARIZATION_PROMPT = """
-You are a helpful oceanographer's assistant. Generate a specific, data-driven response based on the query results.
+You are an oceanographic data analyst. Generate a precise, factual response using ONLY the provided data.
 
 User Question: "{question}"
 Query Type: "{query_type}"
-Result Statistics: "{results_summary}"
-Sample Data: "{sample_data}"
+Data Statistics: {results_summary}
+Sample Records: {sample_data}
 
-IMPORTANT RULES:
-1. Be SPECIFIC - mention actual numbers, float IDs, locations, temperatures, etc. from the data
-2. Be CONCISE - 2-3 sentences maximum
-3. DO NOT mention "data availability is limited" or similar phrases unless there are 0 results
-4. DO NOT repeat the same generic phrases for every response
-5. Include actionable insights based on the actual data values
+RULES:
+1. Use EXACT numbers from the statistics (temperatures, counts, distances, float IDs)
+2. Maximum 2-3 sentences
+3. Start with the key finding (e.g., "Found 127 floats...", "Average temperature is 28.5°C...")
+4. For Proximity: mention closest float ID, distance, and coordinates
+5. For Statistics: state the calculated value with units and record count
+6. For Trajectory: mention start/end points and time span
+7. For Profile: mention depth range and temperature gradient
+8. NEVER say "data is limited" unless 0 results
+9. NEVER use placeholder text - only real values from the data
 
-Examples of GOOD responses:
-- "Found 5 ARGO floats near Chennai, with distances ranging from 27km to 316km. Float 2902115 is the closest, currently at coordinates (13.2°N, 80.4°E)."
-- "The average temperature in Bay of Bengal is 28.5°C across 1,200 measurements. Surface temperatures (0-50m) average 29.2°C while deeper waters (500m+) average 8.4°C."
-- "Float 2903100 traveled 145km between September and December 2025, moving northwest from (10.2°N, 85.5°E) to (12.1°N, 83.2°E)."
+RESPONSE TEMPLATES:
+Proximity: "Found [N] floats near [location]. Float [ID] is closest at [X]km ([lat]°N, [lon]°E), with temperature [T]°C."
+Statistic: "The [aggregation] [metric] in [location] is [value][unit] across [N] measurements from [date range]."
+Trajectory: "Float [ID] recorded [N] positions from [start_date] to [end_date], traveling from ([lat1], [lon1]) to ([lat2], [lon2])."
+Profile: "Depth profile shows temperature decreasing from [T1]°C at surface to [T2]°C at [depth]m depth."
 
-Now generate a response for this specific query:
+Generate response:
 """
 
 def get_intelligent_answer(user_question: str):
@@ -293,13 +305,40 @@ def get_intelligent_answer(user_question: str):
             lon = intent.get("longitude")
             location_name = (intent.get("location_name") or "").lower()
             location_centers = {
+                # Indian Ocean
                 "arabian sea": (15, 62.5),
                 "bay of bengal": (13.5, 87.5),
-                "equator": (0, 0),
+                "indian ocean": (0, 75),
                 "andaman sea": (10, 95),
+                "laccadive sea": (11, 74),
+                "red sea": (20, 38),
+                "persian gulf": (27, 52),
+                "mozambique channel": (-18, 40),
+                # Pacific Ocean
+                "pacific ocean": (0, 160),
+                "south china sea": (15, 115),
+                "philippine sea": (20, 130),
+                "coral sea": (-16, 155),
+                "tasman sea": (-37, 162),
+                # Atlantic Ocean
+                "atlantic ocean": (25, -40),
+                "caribbean sea": (17, -75),
+                "gulf of mexico": (25, -90),
+                "mediterranean sea": (38, 18),
+                "north sea": (56, 3),
+                # Cities
                 "chennai": (13, 80.25),
                 "mumbai": (19, 72.75),
-                "sri lanka": (7.5, 80.5)
+                "sri lanka": (7.5, 80.5),
+                "singapore": (1.3, 104),
+                "tokyo": (35.5, 140),
+                "sydney": (-34, 151),
+                "cape town": (-34, 18),
+                "miami": (26, -80),
+                # Special
+                "equator": (0, 80),
+                "southern ocean": (-55, 0),
+                "tropics": (10, 80),
             }
             if (lat is None or lon is None) and location_name in location_centers:
                 lat, lon = location_centers[location_name]

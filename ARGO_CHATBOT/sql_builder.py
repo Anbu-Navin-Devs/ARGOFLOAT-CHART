@@ -37,13 +37,40 @@ def _build_proximity_query(intent: dict, db_context: dict) -> str:
     if (lat is None or lon is None):
         location_name = (intent.get("location_name") or "").lower()
         location_centers = {
+            # Indian Ocean
             "arabian sea": (15, 62.5),
             "bay of bengal": (13.5, 87.5),
-            "equator": (0, 0),
+            "indian ocean": (0, 75),
             "andaman sea": (10, 95),
+            "laccadive sea": (11, 74),
+            "red sea": (20, 38),
+            "persian gulf": (27, 52),
+            "mozambique channel": (-18, 40),
+            # Pacific Ocean
+            "pacific ocean": (0, 160),
+            "south china sea": (15, 115),
+            "philippine sea": (20, 130),
+            "coral sea": (-16, 155),
+            "tasman sea": (-37, 162),
+            # Atlantic Ocean
+            "atlantic ocean": (25, -40),
+            "caribbean sea": (17, -75),
+            "gulf of mexico": (25, -90),
+            "mediterranean sea": (38, 18),
+            "north sea": (56, 3),
+            # Cities
             "chennai": (13, 80.25),
             "mumbai": (19, 72.75),
-            "sri lanka": (7.5, 80.5)
+            "sri lanka": (7.5, 80.5),
+            "singapore": (1.3, 104),
+            "tokyo": (35.5, 140),
+            "sydney": (-34, 151),
+            "cape town": (-34, 18),
+            "miami": (26, -80),
+            # Special
+            "equator": (0, 80),
+            "southern ocean": (-55, 0),
+            "tropics": (10, 80),
         }
         if location_name in location_centers:
             lat, lon = location_centers[location_name]

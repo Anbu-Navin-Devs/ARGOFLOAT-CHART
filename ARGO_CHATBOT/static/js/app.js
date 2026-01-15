@@ -355,37 +355,66 @@ function populateChartAxes(data) {
 
 function updateStats(data, queryType) {
     if (!data || data.length === 0) {
-        el.statsGrid.innerHTML = '';
+        el.statsGrid.innerHTML = '<div class="stat-card"><div class="stat-label">No Data</div><div class="stat-value">—</div></div>';
         return;
     }
     
     const stats = [];
     
     // Record count
-    stats.push({ label: 'Records', value: data.length.toLocaleString() });
+    stats.push({ label: 'Records', value: data.length.toLocaleString(), icon: '📊' });
     
     // Unique floats
-    const floats = new Set(data.map(d => d.float_id)).size;
-    if (floats > 0) stats.push({ label: 'Floats', value: floats });
+    const floatIds = [...new Set(data.map(d => d.float_id).filter(Boolean))];
+    if (floatIds.length > 0) {
+        stats.push({ label: 'Floats', value: floatIds.length.toLocaleString(), icon: '🔵' });
+    }
+    
+    // Distance (for proximity queries)
+    const distances = data.filter(d => d.distance_km != null).map(d => d.distance_km);
+    if (distances.length > 0) {
+        const minDist = Math.min(...distances);
+        const maxDist = Math.max(...distances);
+        stats.push({ label: 'Distance', value: `${minDist.toFixed(0)}-${maxDist.toFixed(0)} km`, icon: '📍' });
+    }
     
     // Temperature
     const temps = data.filter(d => d.temperature != null).map(d => d.temperature);
     if (temps.length > 0) {
         const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
-        stats.push({ label: 'Avg Temp', value: avgTemp.toFixed(2) + '°C' });
+        const minTemp = Math.min(...temps);
+        const maxTemp = Math.max(...temps);
+        stats.push({ label: 'Temperature', value: `${avgTemp.toFixed(1)}°C`, subtext: `${minTemp.toFixed(1)} - ${maxTemp.toFixed(1)}`, icon: '🌡️' });
     }
     
     // Salinity
     const sals = data.filter(d => d.salinity != null).map(d => d.salinity);
     if (sals.length > 0) {
         const avgSal = sals.reduce((a, b) => a + b, 0) / sals.length;
-        stats.push({ label: 'Avg Salinity', value: avgSal.toFixed(2) + ' PSU' });
+        stats.push({ label: 'Salinity', value: avgSal.toFixed(2) + ' PSU', icon: '🧪' });
+    }
+    
+    // Depth range (for profile queries)
+    const pressures = data.filter(d => d.pressure != null).map(d => d.pressure);
+    if (pressures.length > 0 && queryType === 'Profile') {
+        const maxDepth = Math.max(...pressures);
+        stats.push({ label: 'Max Depth', value: maxDepth.toFixed(0) + ' dbar', icon: '⬇️' });
+    }
+    
+    // Date range
+    const timestamps = data.filter(d => d.timestamp).map(d => new Date(d.timestamp));
+    if (timestamps.length > 1) {
+        const minDate = new Date(Math.min(...timestamps));
+        const maxDate = new Date(Math.max(...timestamps));
+        const dateRange = `${minDate.toLocaleDateString('en-US', {month: 'short', year: '2-digit'})} - ${maxDate.toLocaleDateString('en-US', {month: 'short', year: '2-digit'})}`;
+        stats.push({ label: 'Period', value: dateRange, icon: '📅' });
     }
     
     el.statsGrid.innerHTML = stats.map(s => `
         <div class="stat-card">
-            <div class="stat-label">${s.label}</div>
+            <div class="stat-label">${s.icon || ''} ${s.label}</div>
             <div class="stat-value">${s.value}</div>
+            ${s.subtext ? `<div class="stat-subtext">${s.subtext}</div>` : ''}
         </div>
     `).join('');
 }
@@ -404,32 +433,52 @@ function updateMap(data, queryType) {
     
     const bounds = L.latLngBounds();
     
-    // Trajectory
+    // Trajectory visualization
     if (queryType === 'Trajectory') {
-        const path = data.map(d => [d.latitude, d.longitude]);
+        // Sort by timestamp for proper path
+        const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        const path = sorted.map(d => [d.latitude, d.longitude]);
+        
+        // Gradient polyline
         const polyline = L.polyline(path, {
             color: '#3b82f6',
-            weight: 3,
-            opacity: 0.8
+            weight: 4,
+            opacity: 0.8,
+            smoothFactor: 1
         }).addTo(state.map);
         state.polylines.push(polyline);
         
-        // Start/end markers
+        // Start/end markers with detailed info
         if (path.length > 0) {
+            const startData = sorted[0];
+            const endData = sorted[sorted.length - 1];
+            
             const startMarker = L.circleMarker(path[0], {
-                radius: 8, fillColor: '#22c55e', fillOpacity: 1, color: 'white', weight: 2
-            }).bindPopup('Start').addTo(state.map);
+                radius: 10, fillColor: '#22c55e', fillOpacity: 1, color: 'white', weight: 2
+            }).bindPopup(`
+                <strong>🟢 Start Point</strong><br>
+                <b>Float:</b> ${startData.float_id}<br>
+                <b>Date:</b> ${new Date(startData.timestamp).toLocaleDateString()}<br>
+                <b>Position:</b> ${startData.latitude?.toFixed(3)}°N, ${startData.longitude?.toFixed(3)}°E<br>
+                ${startData.temperature ? `<b>Temp:</b> ${startData.temperature.toFixed(1)}°C` : ''}
+            `).addTo(state.map);
             
             const endMarker = L.circleMarker(path[path.length - 1], {
-                radius: 8, fillColor: '#ef4444', fillOpacity: 1, color: 'white', weight: 2
-            }).bindPopup('End').addTo(state.map);
+                radius: 10, fillColor: '#ef4444', fillOpacity: 1, color: 'white', weight: 2
+            }).bindPopup(`
+                <strong>🔴 End Point</strong><br>
+                <b>Float:</b> ${endData.float_id}<br>
+                <b>Date:</b> ${new Date(endData.timestamp).toLocaleDateString()}<br>
+                <b>Position:</b> ${endData.latitude?.toFixed(3)}°N, ${endData.longitude?.toFixed(3)}°E<br>
+                ${endData.temperature ? `<b>Temp:</b> ${endData.temperature.toFixed(1)}°C` : ''}
+            `).addTo(state.map);
             
             state.markers.push(startMarker, endMarker);
         }
         
         path.forEach(p => bounds.extend(p));
     } else {
-        // Group by float
+        // Group by float for other query types
         const floatGroups = {};
         data.forEach(d => {
             if (d.latitude && d.longitude) {
@@ -439,23 +488,39 @@ function updateMap(data, queryType) {
             }
         });
         
+        // Color scale for proximity (closest = green, farthest = red)
+        const hasDistance = data.some(d => d.distance_km != null);
+        const distances = hasDistance ? data.map(d => d.distance_km || 0) : [];
+        const minDist = Math.min(...distances);
+        const maxDist = Math.max(...distances);
+        
         Object.entries(floatGroups).forEach(([floatId, points]) => {
             const latest = points[points.length - 1];
+            
+            // Color based on distance for proximity queries
+            let fillColor = '#3b82f6';
+            if (hasDistance && latest.distance_km != null) {
+                const ratio = (latest.distance_km - minDist) / (maxDist - minDist + 0.1);
+                fillColor = ratio < 0.3 ? '#22c55e' : ratio < 0.6 ? '#f59e0b' : '#ef4444';
+            }
+            
             const marker = L.circleMarker([latest.latitude, latest.longitude], {
-                radius: 6,
-                fillColor: '#3b82f6',
+                radius: 7,
+                fillColor: fillColor,
                 fillOpacity: 0.9,
                 color: 'white',
                 weight: 2
             }).addTo(state.map);
             
-            marker.bindPopup(`
-                <strong>Float ${floatId}</strong><br>
-                Lat: ${latest.latitude?.toFixed(4)}<br>
-                Lon: ${latest.longitude?.toFixed(4)}<br>
-                ${latest.temperature ? `Temp: ${latest.temperature.toFixed(2)}°C<br>` : ''}
-                ${latest.salinity ? `Sal: ${latest.salinity.toFixed(2)} PSU` : ''}
-            `);
+            // Rich popup
+            let popupContent = `<strong>🔵 Float ${floatId}</strong><br>`;
+            popupContent += `<b>Position:</b> ${latest.latitude?.toFixed(3)}°N, ${latest.longitude?.toFixed(3)}°E<br>`;
+            if (latest.distance_km != null) popupContent += `<b>Distance:</b> ${latest.distance_km.toFixed(1)} km<br>`;
+            if (latest.timestamp) popupContent += `<b>Date:</b> ${new Date(latest.timestamp).toLocaleDateString()}<br>`;
+            if (latest.temperature != null) popupContent += `<b>Temp:</b> ${latest.temperature.toFixed(1)}°C<br>`;
+            if (latest.salinity != null) popupContent += `<b>Salinity:</b> ${latest.salinity.toFixed(2)} PSU`;
+            
+            marker.bindPopup(popupContent);
             
             state.markers.push(marker);
             bounds.extend([latest.latitude, latest.longitude]);
