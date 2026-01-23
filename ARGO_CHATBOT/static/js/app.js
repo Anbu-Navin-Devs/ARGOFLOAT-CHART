@@ -620,8 +620,18 @@ function initShortcutsModal() {
     const closeBtn = document.getElementById('closeShortcutsModal');
     
     if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            modal?.classList.add('hidden');
+        // Remove any existing listeners first
+        const newBtn = closeBtn.cloneNode(true);
+        closeBtn.parentNode.replaceChild(newBtn, closeBtn);
+        
+        // Add fresh click handler
+        newBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+            console.log('Shortcuts modal closed');
         });
     }
     
