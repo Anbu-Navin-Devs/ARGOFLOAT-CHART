@@ -346,12 +346,12 @@
         }
     </style>
 </head>
-<body>
+<body class="dashboard-page">
     <div class="dashboard-layout">
         <!-- Header -->
         <header class="dashboard-header">
             <a href="/" class="dashboard-logo">
-                🌊 <span>FloatChart Pro</span>
+                🌊 <span>FloatChart</span>
             </a>
             
             <nav class="dashboard-nav">
@@ -541,22 +541,28 @@
         // Fetch dashboard data
         async function loadDashboardData() {
             try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                
-                // Update stats
-                if (data.records) {
-                    document.getElementById('floatCount').textContent = 
-                        data.unique_floats ? data.unique_floats.toLocaleString() : '--';
-                    document.getElementById('floatChange').textContent = 
-                        `${data.records.toLocaleString()} total records`;
-                }
+                // Fetch status first
+                const statusResponse = await fetch('/api/status');
+                const statusData = await statusResponse.json();
                 
                 // Update activity summary
-                updateActivitySummary(data);
+                updateActivitySummary(statusData);
                 
-                // Load sample charts
-                await loadCharts();
+                // Fetch real dashboard stats
+                const statsResponse = await fetch('/api/dashboard/stats');
+                const stats = await statsResponse.json();
+                
+                if (stats.overview) {
+                    // Update overview cards with REAL data
+                    document.getElementById('avgTemp').textContent = `${stats.overview.avg_temperature}°C`;
+                    document.getElementById('avgSal').textContent = `${stats.overview.avg_salinity} PSU`;
+                    document.getElementById('floatCount').textContent = stats.overview.float_count.toLocaleString();
+                    document.getElementById('floatChange').textContent = `${stats.overview.total_records.toLocaleString()} total records`;
+                    document.getElementById('maxDepth').textContent = `${Math.round(stats.overview.max_depth).toLocaleString()} m`;
+                }
+                
+                // Load charts with real data
+                await loadCharts(stats);
                 
             } catch (error) {
                 console.error('Failed to load dashboard data:', error);
@@ -605,16 +611,21 @@
             `).join('');
         }
         
-        async function loadCharts() {
+        async function loadCharts(stats) {
             const colors = getChartColors();
             
-            // Temperature Distribution (mock data - would come from API)
+            // Temperature Distribution with REAL data
+            const tempLabels = ['20-22', '22-24', '24-26', '26-28', '28-30', '30+'];
+            const tempData = stats?.temperature_distribution 
+                ? tempLabels.map(label => stats.temperature_distribution[label] || 0)
+                : [15, 35, 80, 120, 95, 45];
+            
             new Chart(document.getElementById('tempDistChart'), {
                 type: 'bar',
                 data: {
-                    labels: ['20-22', '22-24', '24-26', '26-28', '28-30', '30-32'],
+                    labels: tempLabels,
                     datasets: [{
-                        data: [15, 35, 80, 120, 95, 45],
+                        data: tempData,
                         backgroundColor: 'rgba(239, 68, 68, 0.7)',
                         borderColor: '#ef4444',
                         borderWidth: 1,
@@ -638,13 +649,18 @@
                 }
             });
             
-            // Salinity Distribution
+            // Salinity Distribution with REAL data
+            const salLabels = ['33-34', '34-35', '35-36', '36-37'];
+            const salData = stats?.salinity_distribution
+                ? salLabels.map(label => stats.salinity_distribution[label] || 0)
+                : [45, 80, 150, 85];
+                
             new Chart(document.getElementById('salDistChart'), {
                 type: 'bar',
                 data: {
-                    labels: ['33-34', '34-35', '35-36', '36-37', '37-38'],
+                    labels: salLabels,
                     datasets: [{
-                        data: [25, 85, 150, 90, 30],
+                        data: salData,
                         backgroundColor: 'rgba(59, 130, 246, 0.7)',
                         borderColor: '#3b82f6',
                         borderWidth: 1,
@@ -731,13 +747,6 @@
                     }
                 }
             });
-            
-            // Update overview stats with sample data
-            document.getElementById('avgTemp').textContent = '27.3°C';
-            document.getElementById('tempChange').innerHTML = '<span>↑</span> +0.2°C from last month';
-            document.getElementById('avgSal').textContent = '35.2 PSU';
-            document.getElementById('salChange').textContent = 'Typical ocean salinity';
-            document.getElementById('maxDepth').textContent = '2,000 m';
         }
         
         // Load on page ready

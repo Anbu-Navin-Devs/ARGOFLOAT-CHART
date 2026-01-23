@@ -115,6 +115,15 @@
 
 html, body {
     height: 100%;
+}
+
+/* Allow scrolling on dashboard page */
+body.dashboard-page {
+    overflow: auto;
+}
+
+/* Main app uses hidden overflow */
+body.app-page {
     overflow: hidden;
 }
 

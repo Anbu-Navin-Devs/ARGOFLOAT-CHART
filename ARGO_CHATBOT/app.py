@@ -230,6 +230,82 @@ def get_status():
         }), 500
 
 
+@app.route('/api/dashboard/stats')
+@cached(ttl=300)
+def get_dashboard_stats():
+    """Get real statistics for the dashboard."""
+    db = get_db_engine()
+    if not db:
+        return jsonify({"error": "Database not connected"}), 500
+    
+    try:
+        with db.connect() as conn:
+            # Get overview stats
+            result = conn.execute(text("""
+                SELECT 
+                    ROUND(AVG(temperature)::numeric, 1) as avg_temp,
+                    ROUND(AVG(salinity)::numeric, 1) as avg_salinity,
+                    COUNT(DISTINCT float_id) as float_count,
+                    MAX(pressure) as max_depth,
+                    COUNT(*) as total_records
+                FROM argo_data
+                WHERE temperature IS NOT NULL
+            """))
+            stats = result.fetchone()
+            
+            # Get temperature distribution
+            temp_result = conn.execute(text("""
+                SELECT 
+                    CASE 
+                        WHEN temperature >= 20 AND temperature < 22 THEN '20-22'
+                        WHEN temperature >= 22 AND temperature < 24 THEN '22-24'
+                        WHEN temperature >= 24 AND temperature < 26 THEN '24-26'
+                        WHEN temperature >= 26 AND temperature < 28 THEN '26-28'
+                        WHEN temperature >= 28 AND temperature < 30 THEN '28-30'
+                        WHEN temperature >= 30 THEN '30+'
+                        ELSE 'Other'
+                    END as range,
+                    COUNT(*) as count
+                FROM argo_data
+                WHERE temperature IS NOT NULL
+                GROUP BY range
+                ORDER BY range
+            """))
+            temp_dist = {row[0]: row[1] for row in temp_result.fetchall()}
+            
+            # Get salinity distribution
+            sal_result = conn.execute(text("""
+                SELECT 
+                    CASE 
+                        WHEN salinity >= 33 AND salinity < 34 THEN '33-34'
+                        WHEN salinity >= 34 AND salinity < 35 THEN '34-35'
+                        WHEN salinity >= 35 AND salinity < 36 THEN '35-36'
+                        WHEN salinity >= 36 AND salinity < 37 THEN '36-37'
+                        ELSE 'Other'
+                    END as range,
+                    COUNT(*) as count
+                FROM argo_data
+                WHERE salinity IS NOT NULL
+                GROUP BY range
+                ORDER BY range
+            """))
+            sal_dist = {row[0]: row[1] for row in sal_result.fetchall()}
+            
+            return jsonify({
+                "overview": {
+                    "avg_temperature": float(stats[0]) if stats[0] else 0,
+                    "avg_salinity": float(stats[1]) if stats[1] else 0,
+                    "float_count": stats[2] or 0,
+                    "max_depth": float(stats[3]) if stats[3] else 0,
+                    "total_records": stats[4] or 0
+                },
+                "temperature_distribution": temp_dist,
+                "salinity_distribution": sal_dist
+            })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/query')
 def handle_query():
     """
