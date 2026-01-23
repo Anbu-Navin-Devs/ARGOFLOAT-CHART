@@ -617,24 +617,8 @@ function toggleShortcutsModal() {
 // Initialize shortcuts modal handlers once
 function initShortcutsModal() {
     const modal = document.getElementById('shortcutsModal');
-    const closeBtn = document.getElementById('closeShortcutsModal');
     
-    if (closeBtn) {
-        // Remove any existing listeners first
-        const newBtn = closeBtn.cloneNode(true);
-        closeBtn.parentNode.replaceChild(newBtn, closeBtn);
-        
-        // Add fresh click handler
-        newBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (modal) {
-                modal.classList.add('hidden');
-            }
-            console.log('Shortcuts modal closed');
-        });
-    }
-    
+    // Close on background click
     if (modal) {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
@@ -642,6 +626,16 @@ function initShortcutsModal() {
             }
         });
     }
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('shortcutsModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                modal.classList.add('hidden');
+            }
+        }
+    });
 }
 
 // ========================================
@@ -953,10 +947,22 @@ function dismissPWAPrompt() {
 // Performance Monitor
 // ========================================
 function initPerformanceMonitor() {
-    // Track page load time
+    // Track page load time using modern Performance API
     window.addEventListener('load', () => {
-        const timing = performance.timing;
-        const loadTime = timing.loadEventEnd - timing.navigationStart;
+        // Use modern Navigation Timing API
+        const entries = performance.getEntriesByType('navigation');
+        let loadTime = 0;
+        
+        if (entries.length > 0) {
+            loadTime = Math.round(entries[0].loadEventEnd - entries[0].startTime);
+        } else if (performance.timing) {
+            // Fallback to deprecated API
+            loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
+        }
+        
+        // Ensure positive value
+        if (loadTime <= 0) loadTime = Math.round(performance.now());
+        
         console.log(`📊 Page load time: ${loadTime}ms`);
         
         // Update perf stats display
