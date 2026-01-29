@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ARGO_CHATBOT/ .
 
-
+# Expose the port the app runs onkkk
 EXPOSE 7860
 
 # Run with gunicorn - use sync worker to avoid sendfile issues
