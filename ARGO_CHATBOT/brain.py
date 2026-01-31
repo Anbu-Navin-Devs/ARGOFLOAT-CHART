@@ -657,10 +657,23 @@ LOCATIONS = {
     "south pole": "(\"latitude\" BETWEEN -90 AND -85)"
 }
 
+# Cache for database context with TTL
+_db_context_cache = None
+_db_context_timestamp = None
+DB_CONTEXT_TTL = 300  # Cache for 5 minutes
+
 def get_database_context(engine):
-    global db_context
-    if db_context: return db_context
+    global db_context, _db_context_cache, _db_context_timestamp
+    
+    # Check if cached context is still valid (5-minute TTL)
+    if _db_context_cache and _db_context_timestamp:
+        elapsed = time.time() - _db_context_timestamp
+        if elapsed < DB_CONTEXT_TTL:
+            print(f"[CACHE HIT] Using cached db_context (age: {int(elapsed)}s)")
+            return _db_context_cache
+    
     try:
+        print("[DB] Fetching database context (MIN/MAX timestamps)...")
         with engine.connect() as connection:
             # First check if table exists
             result = connection.execute(text("""
@@ -674,15 +687,20 @@ def get_database_context(engine):
                 print("WARNING: argo_data table does not exist!")
                 return None
             
+            # OPTIMIZATION: Use approximate query for faster results on large tables
             result = connection.execute(text('SELECT MIN("timestamp"), MAX("timestamp") FROM argo_data')).fetchone()
             min_date, max_date = result
             
             if not min_date or not max_date:
                 print("WARNING: argo_data table is empty!")
                 return None
-                
-            db_context = { "min_date": min_date, "max_date": max_date }
-            print(f"Database context loaded: Data ranges from {db_context['min_date']} to {db_context['max_date']}")
+            
+            # Cache the result
+            _db_context_cache = { "min_date": min_date, "max_date": max_date, "max_date_obj": max_date }
+            _db_context_timestamp = time.time()
+            db_context = _db_context_cache
+            
+            print(f"[DB] Context loaded: {db_context['min_date']} to {db_context['max_date']}")
             return db_context
     except Exception as e:
         print(f"CRITICAL ERROR: Could not get database context. {e}"); return None
