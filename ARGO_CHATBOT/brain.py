@@ -95,13 +95,12 @@ def get_groq_llm():
     if groq_key:
         try:
             from langchain_groq import ChatGroq
-            model = os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
+            model = os.getenv("GROQ_MODEL_NAME", "llama-3.1-70b-versatile")
             return ChatGroq(
                 model=model,
                 temperature=0,
                 api_key=groq_key,
-                max_retries=2,
-                request_timeout=15  # Fast timeout for simple queries
+                max_retries=2
             )
         except Exception as e:
             print(f"⚠ Groq unavailable: {e}")
@@ -120,9 +119,8 @@ def get_deepseek_llm():
                 model=model,
                 temperature=0,
                 api_key=deepseek_key,
-                base_url="https://api.deepseek.com",
-                max_retries=3,
-                request_timeout=60  # Longer timeout for complex queries
+                base_url="https://api.deepseek.com/v1",
+                max_retries=3
             )
         except Exception as e:
             print(f"⚠ DeepSeek unavailable: {e}")
