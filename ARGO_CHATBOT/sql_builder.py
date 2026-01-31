@@ -102,7 +102,13 @@ def _build_proximity_query(intent: dict, db_context: dict) -> str:
             intent["longitude"] = lon
     # If still missing, return a friendly error
     if lat is None or lon is None:
-        return "ERROR: Proximity query requires coordinates or a known location. Please specify a location or coordinates."
+        return "ERROR: Proximity query requires coordinates or a known location. Please specify a location like 'Chennai', 'Bay of Bengal', or provide coordinates."
+    
+    # Validate coordinates are in valid range
+    if not (-90 <= lat <= 90):
+        return f"ERROR: Invalid latitude {lat}. Latitude must be between -90 and 90 degrees."
+    if not (-180 <= lon <= 180):
+        return f"ERROR: Invalid longitude {lon}. Longitude must be between -180 and 180 degrees."
 
     metrics = intent.get("metrics") or []
     # Ensure we only select unique metrics and avoid duplicating base columns
@@ -114,9 +120,12 @@ def _build_proximity_query(intent: dict, db_context: dict) -> str:
         base_conditions.append(time_clause)
     
     # OPTIMIZATION: Add bounding box filter to drastically reduce scanned rows
-    # ~5 degrees covers roughly 500km at equator, provides 10-50x speedup
-    lat_delta = 6.0  # degrees latitude (~666km)
-    lon_delta = 6.0  # degrees longitude (varies by latitude)
+    # Dynamic box size based on search distance (distance_km / 111 ≈ degrees)
+    search_distance = intent.get("distance_km", 500)
+    # Use larger box than search distance to ensure we don't miss edge cases
+    # 1 degree ≈ 111km at equator, use 1.5x multiplier for safety
+    lat_delta = max(8.0, (search_distance / 111) * 1.5)  # At least 8 degrees (~888km)
+    lon_delta = max(8.0, (search_distance / 111) * 1.5)  # Longitude varies but safe estimate
     bounding_box = f'"latitude" BETWEEN {lat - lat_delta} AND {lat + lat_delta} AND "longitude" BETWEEN {lon - lon_delta} AND {lon + lon_delta}'
     base_conditions.append(bounding_box)
     

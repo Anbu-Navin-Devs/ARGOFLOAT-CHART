@@ -1350,20 +1350,50 @@ def get_intelligent_answer(user_question: str):
             sample = data_records[:5]  # First 5 records as sample for better context
             sample_data_str = json.dumps(sample, default=str)[:800]  # Increased limit
         
-        # Handle empty results
+        # Handle empty results with helpful suggestions
         if num_records == 0:
             if query_type == "Proximity":
-                results_summary_text = f"No floats found near the specified location. Try a different location or increase search radius."
+                location_name = intent.get("location_name", "the specified location")
+                time_constraint = intent.get("time_constraint", "")
+                search_dist = intent.get("distance_km", 500)
+                
+                # Build helpful suggestion
+                suggestion = f"No ARGO floats found near {location_name}"
+                if time_constraint:
+                    suggestion += f" during {time_constraint}"
+                suggestion += f" within {search_dist}km."
+                
+                # Provide actionable suggestions
+                suggestion += " Suggestions: "
+                suggestions = []
+                if time_constraint:
+                    suggestions.append("try removing the time filter")
+                if search_dist < 800:
+                    suggestions.append("increase search radius (e.g., 'within 1000km')")
+                suggestions.append("try a nearby sea region like 'Bay of Bengal' or 'Arabian Sea'")
+                suggestion += ", ".join(suggestions) + "."
+                
+                results_summary_text = suggestion
             elif query_type in ["Trajectory", "Profile"] and intent.get("float_id"):
-                results_summary_text = f"No data found for float ID {intent['float_id']}. This float may not exist or have data in this period."
+                float_id = intent.get("float_id")
+                results_summary_text = f"No data found for float ID {float_id}. This float may not exist in our database, or may not have data for the specified time period. Try searching for 'available floats near [location]' first."
+            elif query_type == "Statistic":
+                time_constraint = intent.get("time_constraint", "")
+                location_name = intent.get("location_name", "")
+                results_summary_text = f"No statistics available"
+                if location_name:
+                    results_summary_text += f" for {location_name}"
+                if time_constraint:
+                    results_summary_text += f" during {time_constraint}"
+                results_summary_text += f". {data_range_info}. Try a different location or time period."
             else:
                 time_constraint = intent.get("time_constraint", "")
-                if any(year in str(time_constraint).lower() for year in ["2020", "2021", "2022", "2023", "2024"]):
-                    results_summary_text = f"The requested time period is outside our data range. {data_range_info}."
+                if time_constraint and any(year in str(time_constraint).lower() for year in ["2020", "2021", "2022", "2023"]):
+                    results_summary_text = f"The requested time period ({time_constraint}) may be outside our data range. {data_range_info}."
                 else:
-                    results_summary_text = f"No matching data found. {data_range_info}."
+                    results_summary_text = f"No matching data found for your query. {data_range_info}. Try broadening your search criteria."
         elif num_records < 10:
-            results_summary_text += f" Few records found. {data_range_info}."
+            results_summary_text += f" (Limited results. {data_range_info})"
 
         # === STEP 3: Generate natural language summary with LLM ===
         summarization_prompt = PromptTemplate.from_template(SUMMARIZATION_PROMPT)
