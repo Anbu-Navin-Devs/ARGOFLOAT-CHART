@@ -4014,3 +4014,266 @@ body {
         font-size: 10px;
     }
 }
+
+/* ========================================
+   Professional Output Components
+   ======================================== */
+
+/* Insight Highlight Card */
+.insight-highlight {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+    animation: highlightFadeIn 0.4s ease;
+}
+
+@keyframes highlightFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.insight-highlight::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent-gradient);
+}
+
+.insight-highlight .highlight-icon {
+    font-size: 2.5rem;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+}
+
+.insight-highlight .highlight-content {
+    flex: 1;
+}
+
+.insight-highlight .highlight-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.insight-highlight .highlight-value {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.insight-highlight .big-number {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.insight-highlight .highlight-detail {
+    font-size: 1rem;
+    color: var(--accent-secondary);
+    font-weight: 500;
+}
+
+.insight-highlight .highlight-subtext {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+/* Suggestions Container */
+.suggestions-container {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.suggestions-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+.suggestions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.suggestion-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.suggestion-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.suggestion-btn:active {
+    transform: translateY(0);
+}
+
+.suggestion-btn .suggestion-icon {
+    font-size: 1rem;
+}
+
+.suggestion-btn .suggestion-text {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Metadata Footer */
+.metadata-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+}
+
+.metadata-footer .metadata-icon {
+    font-size: 0.9rem;
+}
+
+.metadata-footer .metadata-text {
+    flex: 1;
+}
+
+.metadata-footer .metadata-source {
+    font-style: italic;
+    opacity: 0.8;
+}
+
+/* Enhanced Stat Cards */
+.stat-card[data-color="green"] {
+    --card-accent: var(--success);
+}
+
+.stat-card[data-color="red"] {
+    --card-accent: var(--danger);
+}
+
+.stat-card[data-color="cyan"] {
+    --card-accent: var(--accent-secondary);
+}
+
+.stat-card[data-color="purple"] {
+    --card-accent: var(--accent-tertiary);
+}
+
+.stat-card[data-color="blue"] {
+    --card-accent: var(--accent-primary);
+}
+
+.stat-card .stat-subtext {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* Data Range Note */
+.data-range-note {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    display: inline-block;
+}
+
+/* Summary Text Styling */
+.summary-text {
+    line-height: 1.7;
+    color: var(--text-primary);
+}
+
+.summary-text p {
+    margin-bottom: 12px;
+}
+
+.summary-text strong {
+    color: var(--accent-secondary);
+    font-weight: 600;
+}
+
+.summary-text code {
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--accent-primary);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .insight-highlight {
+        flex-direction: column;
+        text-align: center;
+        padding: 16px;
+    }
+    
+    .insight-highlight .highlight-value {
+        justify-content: center;
+    }
+    
+    .insight-highlight .big-number {
+        font-size: 1.5rem;
+    }
+    
+    .suggestions-list {
+        justify-content: center;
+    }
+    
+    .suggestion-btn {
+        font-size: 0.8rem;
+        padding: 6px 12px;
+    }
+    
+    .metadata-footer {
+        flex-direction: column;
+        text-align: center;
+    }
+}

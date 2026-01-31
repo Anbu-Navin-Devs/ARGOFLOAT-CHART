@@ -1422,12 +1422,15 @@ function finalizeStreamingMessage(msgEl, content) {
 }
 
 // ========================================
-// Display Functions (Enhanced)
+// Display Functions (Enhanced with Professional Output)
 // ========================================
 function displayResults(result) {
-    const { query_type, data, summary, sql_query, data_range } = result;
+    const { query_type, data, summary, sql_query, data_range, insights, visualization, suggestions, metadata } = result;
     state.currentData = data || [];
     state.currentQueryType = query_type;
+    state.currentInsights = insights;
+    state.currentVisualization = visualization;
+    state.currentSuggestions = suggestions;
     
     updateMap(data, query_type);
     
@@ -1437,25 +1440,409 @@ function displayResults(result) {
         el.resultsPanel.style.animation = 'slideUp 0.3s ease';
     }
     
-    // Update summary
+    // Update summary with insights highlight
     if (el.summaryContent) {
-        let summaryHtml = `<div class="summary-text">${formatMarkdown(summary || 'Query completed')}</div>`;
+        let summaryHtml = '';
+        
+        // Highlight card for key insight
+        if (insights?.highlight) {
+            summaryHtml += renderInsightHighlight(insights.highlight, query_type);
+        }
+        
+        // Summary text
+        summaryHtml += `<div class="summary-text">${formatMarkdown(summary || 'Query completed')}</div>`;
+        
+        // Data range
         if (data_range) {
             summaryHtml += `<p class="data-range-note">📅 ${data_range}</p>`;
         }
+        
+        // Suggestions
+        if (suggestions && suggestions.length > 0) {
+            summaryHtml += renderSuggestions(suggestions);
+        }
+        
+        // Metadata footer
+        if (metadata) {
+            summaryHtml += renderMetadata(metadata);
+        }
+        
         el.summaryContent.innerHTML = summaryHtml;
+        
+        // Attach suggestion click handlers
+        attachSuggestionHandlers();
     }
     
-    updateStats(data, query_type);
+    // Update stats with insights
+    updateStatsWithInsights(data, query_type, insights);
     
     if (sql_query && el.sqlCode) {
         el.sqlCode.textContent = sql_query;
     }
     
     populateChartAxes(data);
-    updateChart(data, query_type);
+    
+    // Use visualization recommendation
+    if (visualization?.recommended) {
+        updateChartWithRecommendation(data, query_type, visualization);
+    } else {
+        updateChart(data, query_type);
+    }
+    
     updateTable(data);
     switchTab('summary');
+}
+
+function renderInsightHighlight(highlight, queryType) {
+    if (!highlight) return '';
+    
+    let highlightHtml = '<div class="insight-highlight">';
+    
+    switch (highlight.type) {
+        case 'nearest_float':
+            highlightHtml += `
+                <div class="highlight-icon">📍</div>
+                <div class="highlight-content">
+                    <div class="highlight-label">Nearest ARGO Float</div>
+                    <div class="highlight-value">
+                        <span class="big-number">Float #${highlight.float_id}</span>
+                        <span class="highlight-detail">${highlight.distance_km} km away</span>
+                    </div>
+                    <div class="highlight-subtext">${highlight.location}</div>
+                </div>`;
+            break;
+            
+        case 'statistic':
+            highlightHtml += `
+                <div class="highlight-icon">📊</div>
+                <div class="highlight-content">
+                    <div class="highlight-label">${highlight.label}</div>
+                    <div class="highlight-value">
+                        <span class="big-number">${highlight.value}${highlight.unit}</span>
+                    </div>
+                </div>`;
+            break;
+            
+        case 'trajectory':
+            highlightHtml += `
+                <div class="highlight-icon">🛤️</div>
+                <div class="highlight-content">
+                    <div class="highlight-label">Float #${highlight.float_id} Trajectory</div>
+                    <div class="highlight-value">
+                        <span class="big-number">${highlight.total_distance_km} km</span>
+                        <span class="highlight-detail">${highlight.waypoints} waypoints</span>
+                    </div>
+                </div>`;
+            break;
+            
+        case 'profile':
+            highlightHtml += `
+                <div class="highlight-icon">⬇️</div>
+                <div class="highlight-content">
+                    <div class="highlight-label">Depth Profile</div>
+                    <div class="highlight-value">
+                        <span class="big-number">${highlight.max_depth_dbar} dbar</span>
+                        <span class="highlight-detail">${highlight.depth_layers} layers</span>
+                    </div>
+                </div>`;
+            break;
+            
+        case 'trend':
+            const trendIcon = highlight.trend === 'increasing' ? '📈' : 
+                             highlight.trend === 'decreasing' ? '📉' : '➡️';
+            const trendColor = highlight.trend === 'increasing' ? 'var(--accent-success)' : 
+                              highlight.trend === 'decreasing' ? 'var(--accent-danger)' : 'var(--text-secondary)';
+            highlightHtml += `
+                <div class="highlight-icon">${trendIcon}</div>
+                <div class="highlight-content">
+                    <div class="highlight-label">${capitalizeFirst(highlight.metric)} Trend</div>
+                    <div class="highlight-value">
+                        <span class="big-number" style="color: ${trendColor}">${capitalizeFirst(highlight.trend)}</span>
+                        <span class="highlight-detail">${highlight.change > 0 ? '+' : ''}${highlight.change}${highlight.unit}</span>
+                    </div>
+                </div>`;
+            break;
+            
+        case 'record_count':
+        case 'count':
+            highlightHtml += `
+                <div class="highlight-icon">📊</div>
+                <div class="highlight-content">
+                    <div class="highlight-label">${highlight.label || 'Records Found'}</div>
+                    <div class="highlight-value">
+                        <span class="big-number">${highlight.value.toLocaleString()}</span>
+                    </div>
+                </div>`;
+            break;
+            
+        default:
+            return '';
+    }
+    
+    highlightHtml += '</div>';
+    return highlightHtml;
+}
+
+function renderSuggestions(suggestions) {
+    if (!suggestions || suggestions.length === 0) return '';
+    
+    let html = '<div class="suggestions-container">';
+    html += '<div class="suggestions-label">💡 Try next:</div>';
+    html += '<div class="suggestions-list">';
+    
+    suggestions.forEach((s, i) => {
+        if (s.action === 'export_csv') {
+            html += `<button class="suggestion-btn" data-action="export" title="Export data">
+                <span class="suggestion-icon">${s.icon || '💾'}</span>
+                <span class="suggestion-text">${s.text}</span>
+            </button>`;
+        } else if (s.query) {
+            html += `<button class="suggestion-btn" data-query="${escapeHtml(s.query)}" title="${escapeHtml(s.query)}">
+                <span class="suggestion-icon">${s.icon || '🔍'}</span>
+                <span class="suggestion-text">${s.text}</span>
+            </button>`;
+        }
+    });
+    
+    html += '</div></div>';
+    return html;
+}
+
+function renderMetadata(metadata) {
+    if (!metadata) return '';
+    
+    let parts = [];
+    if (metadata.records_returned) {
+        parts.push(`${metadata.records_returned.toLocaleString()} records`);
+    }
+    if (metadata.processing_time_ms) {
+        parts.push(`${(metadata.processing_time_ms / 1000).toFixed(1)}s`);
+    }
+    if (metadata.data_period?.from && metadata.data_period?.to) {
+        parts.push(`${metadata.data_period.from} to ${metadata.data_period.to}`);
+    }
+    
+    if (parts.length === 0) return '';
+    
+    return `<div class="metadata-footer">
+        <span class="metadata-icon">ℹ️</span>
+        <span class="metadata-text">${parts.join(' • ')}</span>
+        <span class="metadata-source">Source: ${metadata.source || 'ARGO Network'}</span>
+    </div>`;
+}
+
+function attachSuggestionHandlers() {
+    document.querySelectorAll('.suggestion-btn[data-query]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const query = btn.dataset.query;
+            if (query && el.queryInput) {
+                el.queryInput.value = query;
+                sendQuery();
+            }
+        });
+    });
+    
+    document.querySelectorAll('.suggestion-btn[data-action="export"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            exportData('csv');
+        });
+    });
+}
+
+function updateStatsWithInsights(data, queryType, insights) {
+    if (!el.statsGrid) return;
+    
+    if (!data || data.length === 0) {
+        el.statsGrid.innerHTML = `
+            <div class="stat-card empty">
+                <div class="stat-icon">📭</div>
+                <div class="stat-label">No Data</div>
+                <div class="stat-value">—</div>
+            </div>`;
+        return;
+    }
+    
+    const stats = [];
+    
+    // Use insights if available for more accurate stats
+    if (insights?.stats) {
+        // Records count
+        stats.push({ 
+            label: 'Records', 
+            value: data.length.toLocaleString(), 
+            icon: '📊',
+            color: 'blue'
+        });
+        
+        // Unique floats
+        if (insights.stats.unique_floats) {
+            stats.push({ 
+                label: 'Unique Floats', 
+                value: insights.stats.unique_floats.toLocaleString(), 
+                icon: '🔵',
+                color: 'cyan'
+            });
+        }
+        
+        // Distance stats for proximity
+        if (insights.stats.nearest_distance_km !== undefined) {
+            stats.push({ 
+                label: 'Nearest', 
+                value: `${insights.stats.nearest_distance_km} km`, 
+                icon: '📍',
+                color: 'green'
+            });
+            if (insights.stats.count_within_100km !== undefined) {
+                stats.push({ 
+                    label: 'Within 100km', 
+                    value: insights.stats.count_within_100km.toString(), 
+                    icon: '🎯',
+                    color: 'cyan'
+                });
+            }
+        }
+        
+        // Temperature stats
+        if (insights.stats.temperature) {
+            const t = insights.stats.temperature;
+            stats.push({ 
+                label: 'Temperature', 
+                value: `${t.avg}°C`, 
+                subtext: `${t.min}° - ${t.max}°C`,
+                icon: '🌡️',
+                color: t.avg > 25 ? 'red' : 'blue'
+            });
+        }
+        
+        // Salinity stats
+        if (insights.stats.salinity) {
+            const s = insights.stats.salinity;
+            stats.push({ 
+                label: 'Salinity', 
+                value: `${s.avg} PSU`, 
+                icon: '🧪',
+                color: 'purple'
+            });
+        }
+        
+        // Trajectory stats
+        if (insights.stats.total_distance_km !== undefined) {
+            stats.push({ 
+                label: 'Total Distance', 
+                value: `${insights.stats.total_distance_km} km`, 
+                icon: '🛤️',
+                color: 'blue'
+            });
+            if (insights.stats.time_span_days) {
+                stats.push({ 
+                    label: 'Duration', 
+                    value: `${insights.stats.time_span_days} days`, 
+                    icon: '📅',
+                    color: 'cyan'
+                });
+            }
+        }
+        
+        // Profile stats
+        if (insights.stats.max_depth_dbar !== undefined) {
+            stats.push({ 
+                label: 'Max Depth', 
+                value: `${insights.stats.max_depth_dbar} dbar`, 
+                icon: '⬇️',
+                color: 'blue'
+            });
+            if (insights.stats.thermocline_depth) {
+                stats.push({ 
+                    label: 'Thermocline', 
+                    value: `${insights.stats.thermocline_depth} dbar`, 
+                    icon: '🌊',
+                    color: 'cyan'
+                });
+            }
+        }
+        
+        // Time series trend
+        if (insights.highlight?.type === 'trend') {
+            const trendColor = insights.highlight.trend === 'increasing' ? 'green' : 
+                              insights.highlight.trend === 'decreasing' ? 'red' : 'blue';
+            stats.push({ 
+                label: 'Trend', 
+                value: capitalizeFirst(insights.highlight.trend), 
+                icon: insights.highlight.trend === 'increasing' ? '📈' : 
+                      insights.highlight.trend === 'decreasing' ? '📉' : '➡️',
+                color: trendColor
+            });
+        }
+    } else {
+        // Fallback to original stats calculation
+        stats.push({ 
+            label: 'Records', 
+            value: data.length.toLocaleString(), 
+            icon: '📊',
+            color: 'blue'
+        });
+        
+        const floatIds = [...new Set(data.map(d => d.float_id).filter(Boolean))];
+        if (floatIds.length > 0) {
+            stats.push({ 
+                label: 'Unique Floats', 
+                value: floatIds.length.toLocaleString(), 
+                icon: '🔵',
+                color: 'cyan'
+            });
+        }
+        
+        const temps = data.filter(d => d.temperature != null).map(d => d.temperature);
+        if (temps.length > 0) {
+            const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+            stats.push({ 
+                label: 'Avg Temp', 
+                value: `${avg.toFixed(1)}°C`, 
+                icon: '🌡️',
+                color: avg > 25 ? 'red' : 'blue'
+            });
+        }
+        
+        const distances = data.filter(d => d.distance_km != null).map(d => d.distance_km);
+        if (distances.length > 0) {
+            const min = Math.min(...distances);
+            stats.push({ 
+                label: 'Nearest', 
+                value: `${min.toFixed(0)} km`, 
+                icon: '📍',
+                color: 'green'
+            });
+        }
+    }
+    
+    // Limit to 6 stat cards for cleaner display
+    el.statsGrid.innerHTML = stats.slice(0, 6).map(s => `
+        <div class="stat-card" data-color="${s.color || 'blue'}">
+            <div class="stat-icon">${s.icon}</div>
+            <div class="stat-label">${s.label}</div>
+            <div class="stat-value">${s.value}</div>
+            ${s.subtext ? `<div class="stat-subtext">${s.subtext}</div>` : ''}
+        </div>
+    `).join('');
+}
+
+function updateChartWithRecommendation(data, queryType, visualization) {
+    // Auto-select recommended chart type
+    if (el.chartTypeSelect && visualization.recommended) {
+        const typeMap = {
+            'proximity_map': 'auto',
+            'trajectory_map': 'auto',
+            'profile_chart': 'profile',
+            'timeseries': 'timeseries',
+            'big_number': 'auto',
+            'scatter': 'scatter',
+            'ts_diagram': 'ts-diagram'
+        };
+        const chartType = typeMap[visualization.recommended] || 'auto';
+        el.chartTypeSelect.value = chartType;
+    }
+    
+    updateChart(data, queryType);
 }
 
 function formatMarkdown(text) {
@@ -1484,115 +1871,6 @@ function populateChartAxes(data) {
     
     if (el.chartXAxis) el.chartXAxis.innerHTML = options;
     if (el.chartYAxis) el.chartYAxis.innerHTML = options;
-}
-
-function updateStats(data, queryType) {
-    if (!el.statsGrid) return;
-    
-    if (!data || data.length === 0) {
-        el.statsGrid.innerHTML = `
-            <div class="stat-card empty">
-                <div class="stat-icon">📭</div>
-                <div class="stat-label">No Data</div>
-                <div class="stat-value">—</div>
-            </div>`;
-        return;
-    }
-    
-    const stats = [];
-    
-    // Records
-    stats.push({ 
-        label: 'Records', 
-        value: data.length.toLocaleString(), 
-        icon: '📊',
-        color: 'blue',
-        trend: state.currentData.length > 100 ? 'Large dataset' : 'Standard'
-    });
-    
-    // Floats
-    const floatIds = [...new Set(data.map(d => d.float_id).filter(Boolean))];
-    if (floatIds.length > 0) {
-        stats.push({ 
-            label: 'Unique Floats', 
-            value: floatIds.length.toLocaleString(), 
-            icon: '🔵',
-            color: 'cyan'
-        });
-    }
-    
-    // Temperature
-    const temps = data.filter(d => d.temperature != null).map(d => d.temperature);
-    if (temps.length > 0) {
-        const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
-        const min = Math.min(...temps);
-        const max = Math.max(...temps);
-        stats.push({ 
-            label: 'Temperature', 
-            value: `${avg.toFixed(1)}°C`, 
-            subtext: `Range: ${min.toFixed(1)} - ${max.toFixed(1)}°C`,
-            icon: '🌡️',
-            color: avg > 25 ? 'red' : 'blue'
-        });
-    }
-    
-    // Salinity
-    const sals = data.filter(d => d.salinity != null).map(d => d.salinity);
-    if (sals.length > 0) {
-        const avg = sals.reduce((a, b) => a + b, 0) / sals.length;
-        stats.push({ 
-            label: 'Salinity', 
-            value: `${avg.toFixed(2)} PSU`, 
-            icon: '🧪',
-            color: 'purple'
-        });
-    }
-    
-    // Distance
-    const distances = data.filter(d => d.distance_km != null).map(d => d.distance_km);
-    if (distances.length > 0) {
-        const min = Math.min(...distances);
-        const max = Math.max(...distances);
-        stats.push({ 
-            label: 'Distance', 
-            value: `${min.toFixed(0)} - ${max.toFixed(0)} km`, 
-            icon: '📍',
-            color: 'green'
-        });
-    }
-    
-    // Depth
-    const pressures = data.filter(d => d.pressure != null).map(d => d.pressure);
-    if (pressures.length > 0 && queryType === 'Profile') {
-        stats.push({ 
-            label: 'Max Depth', 
-            value: `${Math.max(...pressures).toFixed(0)} dbar`, 
-            icon: '⬇️',
-            color: 'blue'
-        });
-    }
-    
-    // Time period
-    const timestamps = data.filter(d => d.timestamp).map(d => new Date(d.timestamp));
-    if (timestamps.length > 1) {
-        const min = new Date(Math.min(...timestamps));
-        const max = new Date(Math.max(...timestamps));
-        stats.push({ 
-            label: 'Period', 
-            value: `${formatShortDate(min)} - ${formatShortDate(max)}`,
-            icon: '📅',
-            color: 'cyan'
-        });
-    }
-    
-    el.statsGrid.innerHTML = stats.map(s => `
-        <div class="stat-card" data-color="${s.color || 'blue'}">
-            <div class="stat-icon">${s.icon}</div>
-            <div class="stat-label">${s.label}</div>
-            <div class="stat-value">${s.value}</div>
-            ${s.subtext ? `<div class="stat-subtext">${s.subtext}</div>` : ''}
-        </div>
-    `).join('');
 }
 
 // ========================================

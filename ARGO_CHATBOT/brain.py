@@ -909,6 +909,571 @@ def handle_conversational_query(question: str):
     return None
 
 
+# ========================================
+# PROFESSIONAL OUTPUT SYSTEM
+# ========================================
+
+def calculate_insights(df, data_records, query_type, intent):
+    """
+    Calculate structured insights based on query type.
+    Returns professional, query-specific metrics.
+    """
+    insights = {
+        "highlight": None,  # Main metric to emphasize
+        "stats": {},        # Key statistics
+        "context": None,    # Contextual information
+        "quality": "good"   # Data quality indicator
+    }
+    
+    if df.empty or not data_records:
+        insights["quality"] = "no_data"
+        return insights
+    
+    num_records = len(data_records)
+    
+    # Common stats
+    if 'float_id' in df.columns:
+        unique_floats = df['float_id'].nunique()
+        insights["stats"]["unique_floats"] = unique_floats
+        insights["stats"]["float_ids"] = df['float_id'].unique()[:10].tolist()
+    
+    # Query-type specific insights
+    if query_type == "Proximity":
+        insights = _proximity_insights(df, data_records, intent, insights)
+    elif query_type == "Statistic":
+        insights = _statistic_insights(df, data_records, intent, insights)
+    elif query_type == "Trajectory":
+        insights = _trajectory_insights(df, data_records, intent, insights)
+    elif query_type == "Profile":
+        insights = _profile_insights(df, data_records, intent, insights)
+    elif query_type == "Time-Series":
+        insights = _timeseries_insights(df, data_records, intent, insights)
+    else:
+        insights = _general_insights(df, data_records, intent, insights)
+    
+    # Data quality assessment
+    null_ratio = df.isnull().sum().sum() / (len(df) * len(df.columns)) if len(df) > 0 else 1
+    if null_ratio > 0.3:
+        insights["quality"] = "partial"
+    elif num_records < 5:
+        insights["quality"] = "limited"
+    
+    return insights
+
+
+def _proximity_insights(df, data_records, intent, insights):
+    """Insights for proximity/nearest queries."""
+    if 'distance_km' in df.columns and df['distance_km'].notna().any():
+        distances = df['distance_km'].dropna()
+        nearest = df.loc[distances.idxmin()]
+        
+        insights["highlight"] = {
+            "type": "nearest_float",
+            "float_id": int(nearest.get('float_id', 0)),
+            "distance_km": round(float(distances.min()), 1),
+            "location": f"{nearest.get('latitude', 0):.2f}°N, {nearest.get('longitude', 0):.2f}°E"
+        }
+        
+        insights["stats"]["nearest_distance_km"] = round(float(distances.min()), 1)
+        insights["stats"]["farthest_distance_km"] = round(float(distances.max()), 1)
+        insights["stats"]["avg_distance_km"] = round(float(distances.mean()), 1)
+        insights["stats"]["count_within_100km"] = int((distances <= 100).sum())
+        insights["stats"]["count_within_500km"] = int((distances <= 500).sum())
+    
+    # Temperature/Salinity stats if available
+    if 'temperature' in df.columns and df['temperature'].notna().any():
+        temps = df['temperature'].dropna()
+        insights["stats"]["temperature"] = {
+            "avg": round(float(temps.mean()), 1),
+            "min": round(float(temps.min()), 1),
+            "max": round(float(temps.max()), 1)
+        }
+    
+    if 'salinity' in df.columns and df['salinity'].notna().any():
+        sals = df['salinity'].dropna()
+        insights["stats"]["salinity"] = {
+            "avg": round(float(sals.mean()), 2),
+            "min": round(float(sals.min()), 2),
+            "max": round(float(sals.max()), 2)
+        }
+    
+    location = intent.get('location_name', 'the specified location')
+    insights["context"] = f"Searched within {intent.get('distance_km', 500)}km of {location}"
+    
+    return insights
+
+
+def _statistic_insights(df, data_records, intent, insights):
+    """Insights for statistical/aggregate queries."""
+    metrics = intent.get('metrics', [])
+    aggregation = intent.get('aggregation', 'avg').upper()
+    
+    # Find the main metric result
+    for metric in metrics:
+        if metric in df.columns and df[metric].notna().any():
+            values = df[metric].dropna()
+            
+            if aggregation == 'AVG':
+                result = round(float(values.mean()), 2)
+                insights["highlight"] = {
+                    "type": "statistic",
+                    "metric": metric,
+                    "value": result,
+                    "unit": _get_unit(metric),
+                    "label": f"Average {metric.replace('_', ' ').title()}"
+                }
+            elif aggregation == 'MAX':
+                result = round(float(values.max()), 2)
+                insights["highlight"] = {
+                    "type": "statistic",
+                    "metric": metric,
+                    "value": result,
+                    "unit": _get_unit(metric),
+                    "label": f"Maximum {metric.replace('_', ' ').title()}"
+                }
+            elif aggregation == 'MIN':
+                result = round(float(values.min()), 2)
+                insights["highlight"] = {
+                    "type": "statistic",
+                    "metric": metric,
+                    "value": result,
+                    "unit": _get_unit(metric),
+                    "label": f"Minimum {metric.replace('_', ' ').title()}"
+                }
+            elif aggregation == 'COUNT':
+                result = len(values)
+                insights["highlight"] = {
+                    "type": "count",
+                    "value": result,
+                    "label": "Total Records"
+                }
+            
+            insights["stats"][metric] = {
+                "avg": round(float(values.mean()), 2),
+                "min": round(float(values.min()), 2),
+                "max": round(float(values.max()), 2),
+                "std": round(float(values.std()), 2) if len(values) > 1 else 0
+            }
+            break
+    
+    insights["context"] = f"Based on {len(df):,} measurements"
+    return insights
+
+
+def _trajectory_insights(df, data_records, intent, insights):
+    """Insights for trajectory/path queries."""
+    float_id = intent.get('float_id')
+    
+    if 'latitude' in df.columns and 'longitude' in df.columns:
+        # Calculate path statistics
+        if len(df) > 1:
+            # Sort by timestamp
+            df_sorted = df.sort_values('timestamp') if 'timestamp' in df.columns else df
+            
+            # Calculate total distance traveled
+            total_distance = 0
+            for i in range(1, len(df_sorted)):
+                lat1, lon1 = df_sorted.iloc[i-1]['latitude'], df_sorted.iloc[i-1]['longitude']
+                lat2, lon2 = df_sorted.iloc[i]['latitude'], df_sorted.iloc[i]['longitude']
+                total_distance += _haversine_distance(lat1, lon1, lat2, lon2)
+            
+            insights["highlight"] = {
+                "type": "trajectory",
+                "float_id": float_id,
+                "total_distance_km": round(total_distance, 1),
+                "waypoints": len(df)
+            }
+            
+            insights["stats"]["total_distance_km"] = round(total_distance, 1)
+            insights["stats"]["waypoints"] = len(df)
+            
+            # Time span
+            if 'timestamp' in df.columns:
+                try:
+                    timestamps = pd.to_datetime(df['timestamp'])
+                    time_span = (timestamps.max() - timestamps.min()).days
+                    insights["stats"]["time_span_days"] = time_span
+                    if time_span > 0:
+                        insights["stats"]["avg_speed_km_day"] = round(total_distance / time_span, 1)
+                except:
+                    pass
+            
+            # Geographic extent
+            insights["stats"]["lat_range"] = f"{df['latitude'].min():.2f}° to {df['latitude'].max():.2f}°"
+            insights["stats"]["lon_range"] = f"{df['longitude'].min():.2f}° to {df['longitude'].max():.2f}°"
+    
+    insights["context"] = f"Trajectory of Float #{float_id}" if float_id else "Float trajectory"
+    return insights
+
+
+def _profile_insights(df, data_records, intent, insights):
+    """Insights for depth profile queries."""
+    if 'pressure' in df.columns and df['pressure'].notna().any():
+        pressures = df['pressure'].dropna()
+        max_depth = float(pressures.max())
+        
+        insights["highlight"] = {
+            "type": "profile",
+            "max_depth_dbar": round(max_depth, 0),
+            "depth_layers": len(df)
+        }
+        
+        insights["stats"]["max_depth_dbar"] = round(max_depth, 0)
+        insights["stats"]["min_depth_dbar"] = round(float(pressures.min()), 0)
+        insights["stats"]["depth_layers"] = len(df)
+        
+        # Temperature profile analysis
+        if 'temperature' in df.columns and df['temperature'].notna().any():
+            temps = df['temperature'].dropna()
+            insights["stats"]["surface_temp"] = round(float(temps.iloc[0]), 1) if len(temps) > 0 else None
+            insights["stats"]["deep_temp"] = round(float(temps.iloc[-1]), 1) if len(temps) > 0 else None
+            
+            # Detect thermocline (largest temperature gradient)
+            if len(df) > 2:
+                df_sorted = df.sort_values('pressure')
+                if 'temperature' in df_sorted.columns:
+                    temp_diff = df_sorted['temperature'].diff().abs()
+                    if temp_diff.max() > 1:  # Significant gradient
+                        thermocline_idx = temp_diff.idxmax()
+                        insights["stats"]["thermocline_depth"] = round(float(df_sorted.loc[thermocline_idx, 'pressure']), 0)
+    
+    float_id = intent.get('float_id')
+    insights["context"] = f"Vertical profile from Float #{float_id}" if float_id else "Depth profile"
+    return insights
+
+
+def _timeseries_insights(df, data_records, intent, insights):
+    """Insights for time-series queries."""
+    metrics = intent.get('metrics', ['temperature'])
+    
+    if 'timestamp' in df.columns or 'day' in df.columns:
+        time_col = 'day' if 'day' in df.columns else 'timestamp'
+        
+        for metric in metrics:
+            if metric in df.columns and df[metric].notna().any():
+                values = df[metric].dropna()
+                
+                # Trend detection
+                if len(values) > 2:
+                    first_half = values.iloc[:len(values)//2].mean()
+                    second_half = values.iloc[len(values)//2:].mean()
+                    trend_direction = "increasing" if second_half > first_half * 1.02 else \
+                                     "decreasing" if second_half < first_half * 0.98 else "stable"
+                    trend_change = round(second_half - first_half, 2)
+                else:
+                    trend_direction = "insufficient_data"
+                    trend_change = 0
+                
+                insights["highlight"] = {
+                    "type": "trend",
+                    "metric": metric,
+                    "trend": trend_direction,
+                    "change": trend_change,
+                    "unit": _get_unit(metric)
+                }
+                
+                insights["stats"][metric] = {
+                    "avg": round(float(values.mean()), 2),
+                    "min": round(float(values.min()), 2),
+                    "max": round(float(values.max()), 2),
+                    "trend": trend_direction
+                }
+                break
+        
+        insights["stats"]["data_points"] = len(df)
+    
+    insights["context"] = f"Time series for {intent.get('time_constraint', 'available period')}"
+    return insights
+
+
+def _general_insights(df, data_records, intent, insights):
+    """General insights for unspecified query types."""
+    insights["highlight"] = {
+        "type": "record_count",
+        "value": len(data_records),
+        "label": "Records Found"
+    }
+    
+    # Add available metrics
+    for col in ['temperature', 'salinity', 'pressure', 'dissolved_oxygen']:
+        if col in df.columns and df[col].notna().any():
+            values = df[col].dropna()
+            insights["stats"][col] = {
+                "avg": round(float(values.mean()), 2),
+                "min": round(float(values.min()), 2),
+                "max": round(float(values.max()), 2)
+            }
+    
+    return insights
+
+
+def _get_unit(metric):
+    """Get the unit for a metric."""
+    units = {
+        'temperature': '°C',
+        'salinity': 'PSU',
+        'pressure': 'dbar',
+        'dissolved_oxygen': 'μmol/kg',
+        'chlorophyll': 'mg/m³',
+        'ph': '',
+        'nitrate': 'μmol/kg'
+    }
+    return units.get(metric, '')
+
+
+def _haversine_distance(lat1, lon1, lat2, lon2):
+    """Calculate distance between two points in km."""
+    import math
+    R = 6371  # Earth radius in km
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+def recommend_visualization(query_type, df, intent):
+    """
+    Recommend the best visualization for the query type and data.
+    Returns visualization config for frontend.
+    """
+    viz = {
+        "recommended": "auto",
+        "alternatives": [],
+        "config": {}
+    }
+    
+    if df.empty:
+        return viz
+    
+    if query_type == "Proximity":
+        viz["recommended"] = "proximity_map"
+        viz["alternatives"] = ["table", "bar_chart"]
+        viz["config"] = {
+            "show_distance_circles": True,
+            "color_by": "distance",
+            "center": [
+                float(intent.get('latitude', 0)),
+                float(intent.get('longitude', 0))
+            ]
+        }
+        
+    elif query_type == "Trajectory":
+        viz["recommended"] = "trajectory_map"
+        viz["alternatives"] = ["timeseries", "table"]
+        viz["config"] = {
+            "animate": True,
+            "show_timestamps": True,
+            "color_by": "time"
+        }
+        
+    elif query_type == "Profile":
+        viz["recommended"] = "profile_chart"
+        viz["alternatives"] = ["scatter", "table"]
+        viz["config"] = {
+            "x_axis": "temperature",
+            "y_axis": "pressure",
+            "invert_y": True  # Depth increases downward
+        }
+        
+    elif query_type == "Time-Series":
+        viz["recommended"] = "timeseries"
+        viz["alternatives"] = ["scatter", "histogram"]
+        metrics = intent.get('metrics', ['temperature'])
+        viz["config"] = {
+            "x_axis": "timestamp",
+            "y_axis": metrics[0] if metrics else "temperature",
+            "show_trend": True
+        }
+        
+    elif query_type == "Statistic":
+        viz["recommended"] = "big_number"
+        viz["alternatives"] = ["bar_chart", "table"]
+        viz["config"] = {
+            "show_comparison": True
+        }
+        
+    elif query_type == "Scatter":
+        viz["recommended"] = "scatter"
+        viz["alternatives"] = ["ts_diagram", "histogram"]
+        metrics = intent.get('metrics', ['temperature', 'salinity'])
+        viz["config"] = {
+            "x_axis": metrics[0] if len(metrics) > 0 else "temperature",
+            "y_axis": metrics[1] if len(metrics) > 1 else "salinity"
+        }
+    else:
+        # Auto-detect best visualization
+        if 'distance_km' in df.columns:
+            viz["recommended"] = "proximity_map"
+        elif 'pressure' in df.columns and len(df) > 5:
+            viz["recommended"] = "profile_chart"
+        elif 'timestamp' in df.columns:
+            viz["recommended"] = "timeseries"
+        else:
+            viz["recommended"] = "table"
+        viz["alternatives"] = ["scatter", "histogram"]
+    
+    return viz
+
+
+def generate_suggestions(query_type, intent, data_records, db_context):
+    """
+    Generate contextual follow-up suggestions based on current query.
+    """
+    suggestions = []
+    
+    if not data_records:
+        # Suggestions for empty results
+        location = intent.get('location_name', '')
+        if location:
+            suggestions.append({
+                "text": f"Try a larger search area near {location}",
+                "query": f"floats within 1000km of {location}",
+                "icon": "🔍"
+            })
+        suggestions.append({
+            "text": "View all available regions",
+            "query": "what regions have data?",
+            "icon": "🗺️"
+        })
+        return suggestions
+    
+    # Query-type specific suggestions
+    if query_type == "Proximity":
+        float_ids = list(set(r.get('float_id') for r in data_records if r.get('float_id')))
+        if float_ids:
+            suggestions.append({
+                "text": f"View trajectory of Float #{float_ids[0]}",
+                "query": f"trajectory of float {float_ids[0]}",
+                "icon": "🛤️"
+            })
+        location = intent.get('location_name', 'this area')
+        suggestions.append({
+            "text": f"Temperature trends in {location}",
+            "query": f"temperature time series for {location}",
+            "icon": "📈"
+        })
+        suggestions.append({
+            "text": "Compare with other regions",
+            "query": "compare Bay of Bengal and Arabian Sea temperatures",
+            "icon": "⚖️"
+        })
+        
+    elif query_type == "Trajectory":
+        float_id = intent.get('float_id')
+        if float_id:
+            suggestions.append({
+                "text": f"Depth profile for Float #{float_id}",
+                "query": f"depth profile for float {float_id}",
+                "icon": "⬇️"
+            })
+            suggestions.append({
+                "text": f"Temperature history of Float #{float_id}",
+                "query": f"temperature time series for float {float_id}",
+                "icon": "🌡️"
+            })
+        
+    elif query_type == "Profile":
+        suggestions.append({
+            "text": "View temperature-salinity diagram",
+            "query": "T-S diagram for this profile",
+            "icon": "📊"
+        })
+        suggestions.append({
+            "text": "Compare with nearby profiles",
+            "query": "profiles within 200km",
+            "icon": "🔍"
+        })
+        
+    elif query_type == "Time-Series":
+        location = intent.get('location_name', '')
+        suggestions.append({
+            "text": "View seasonal patterns",
+            "query": f"monthly average temperature in {location}" if location else "monthly temperature averages",
+            "icon": "📅"
+        })
+        suggestions.append({
+            "text": "Compare temperature and salinity",
+            "query": f"temperature vs salinity in {location}" if location else "temperature vs salinity scatter",
+            "icon": "🧪"
+        })
+        
+    elif query_type == "Statistic":
+        location = intent.get('location_name', '')
+        time_constraint = intent.get('time_constraint', '')
+        suggestions.append({
+            "text": "View the underlying data",
+            "query": f"show data for {location} {time_constraint}".strip(),
+            "icon": "📋"
+        })
+        suggestions.append({
+            "text": "Compare different metrics",
+            "query": f"all statistics for {location}" if location else "ocean statistics summary",
+            "icon": "📊"
+        })
+    
+    # Always offer export option
+    suggestions.append({
+        "text": "Export this data as CSV",
+        "action": "export_csv",
+        "icon": "💾"
+    })
+    
+    return suggestions[:4]  # Limit to 4 suggestions
+
+
+def build_metadata(df, intent, db_context, processing_time):
+    """
+    Build metadata object for response provenance and quality.
+    """
+    metadata = {
+        "query_type": intent.get('query_type', 'General'),
+        "records_returned": len(df),
+        "processing_time_ms": int(processing_time * 1000),
+        "data_quality": "validated",
+        "source": "ARGO Global Ocean Observing Network"
+    }
+    
+    # Time range of data
+    if 'timestamp' in df.columns and not df.empty:
+        try:
+            timestamps = pd.to_datetime(df['timestamp'])
+            metadata["data_period"] = {
+                "from": timestamps.min().strftime('%Y-%m-%d'),
+                "to": timestamps.max().strftime('%Y-%m-%d')
+            }
+        except:
+            pass
+    
+    # Geographic coverage
+    if 'latitude' in df.columns and 'longitude' in df.columns and not df.empty:
+        metadata["geographic_bounds"] = {
+            "lat_min": round(float(df['latitude'].min()), 2),
+            "lat_max": round(float(df['latitude'].max()), 2),
+            "lon_min": round(float(df['longitude'].min()), 2),
+            "lon_max": round(float(df['longitude'].max()), 2)
+        }
+    
+    # Search parameters
+    if intent.get('location_name'):
+        metadata["search_location"] = intent['location_name']
+    if intent.get('distance_km'):
+        metadata["search_radius_km"] = intent['distance_km']
+    if intent.get('time_constraint'):
+        metadata["time_filter"] = intent['time_constraint']
+    if intent.get('float_id'):
+        metadata["float_id"] = intent['float_id']
+    
+    # Database context
+    if db_context:
+        metadata["database_range"] = {
+            "from": str(db_context.get('min_date', ''))[:10],
+            "to": str(db_context.get('max_date', ''))[:10]
+        }
+    
+    return metadata
+
+
 def get_intelligent_answer(user_question: str):
     """
     Main function to process user questions and return intelligent answers.
@@ -1424,6 +1989,18 @@ def get_intelligent_answer(user_question: str):
         
         logging.info(f"Query completed in {processing_time:.2f}s. Summary: {summary[:100]}...")
         
+        # === STEP 4: Calculate Structured Insights ===
+        insights = calculate_insights(df, data_records, query_type, intent)
+        
+        # === STEP 5: Recommend Visualization ===
+        visualization = recommend_visualization(query_type, df, intent)
+        
+        # === STEP 6: Generate Follow-up Suggestions ===
+        suggestions = generate_suggestions(query_type, intent, data_records, context)
+        
+        # === STEP 7: Build Metadata ===
+        metadata = build_metadata(df, intent, context, processing_time)
+        
         response_payload = {
             "query_type": intent.get("query_type"),
             "sql_query": generated_sql,
@@ -1431,7 +2008,13 @@ def get_intelligent_answer(user_question: str):
             "data": data_records,
             "data_range": data_range_info,
             "record_count": num_records,
-            "processing_time_ms": int(processing_time * 1000)
+            "processing_time_ms": int(processing_time * 1000),
+            
+            # NEW: Professional output enhancements
+            "insights": insights,
+            "visualization": visualization,
+            "suggestions": suggestions,
+            "metadata": metadata
         }
         
         # Debug: optionally surface parsed intent if env var set
