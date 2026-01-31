@@ -101,7 +101,7 @@ def get_groq_llm():
                 temperature=0,
                 api_key=groq_key,
                 max_retries=2,
-                timeout=15  # Fast timeout for simple queries
+                request_timeout=15  # Fast timeout for simple queries
             )
         except Exception as e:
             print(f"⚠ Groq unavailable: {e}")
@@ -122,7 +122,7 @@ def get_deepseek_llm():
                 api_key=deepseek_key,
                 base_url="https://api.deepseek.com",
                 max_retries=3,
-                timeout=60  # Longer timeout for complex queries
+                request_timeout=60  # Longer timeout for complex queries
             )
         except Exception as e:
             print(f"⚠ DeepSeek unavailable: {e}")
