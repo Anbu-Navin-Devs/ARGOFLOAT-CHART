@@ -252,7 +252,7 @@ def get_llm(for_task="general", query_complexity=None):
     )
 
 
-def invoke_with_retry(chain, inputs, max_retries=3, delay=1):
+def invoke_with_retry(chain, inputs, max_retries=2, delay=0.5):
     """
     Invoke LLM chain with retry logic for robustness.
     """
@@ -264,7 +264,7 @@ def invoke_with_retry(chain, inputs, max_retries=3, delay=1):
             last_error = e
             print(f"⚠ LLM call failed (attempt {attempt + 1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
-                time.sleep(delay * (attempt + 1))  # Exponential backoff
+                time.sleep(delay)  # Quick retry
     raise last_error
 
 
@@ -936,7 +936,7 @@ def get_intelligent_answer(user_question: str):
         parser_chain = prompt | llm | StrOutputParser()
         
         # Use retry logic for robustness
-        intent_json_str = invoke_with_retry(parser_chain, {"question": user_question}, max_retries=3)
+        intent_json_str = invoke_with_retry(parser_chain, {"question": user_question}, max_retries=2)
 
         # Extract JSON from response (handle markdown code blocks)
         intent_json_str = intent_json_str.strip()
