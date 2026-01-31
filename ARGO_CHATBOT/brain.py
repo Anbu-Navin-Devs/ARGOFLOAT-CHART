@@ -221,9 +221,9 @@ def get_llm(for_task="general", query_complexity=None):
     else:
         # FREE mode: Groq is best - truly unlimited FREE!
         # Works great for both simple AND complex queries
-        print("⚡ Using FREE AI (Groq)")
+        print("[FREE] Using Groq AI")
         providers = [
-            ("Groq Llama 🚀", get_groq_llm),
+            ("Groq Llama", get_groq_llm),
             ("Google Gemini", get_gemini_llm),
             ("DeepSeek", get_deepseek_llm),
             ("OpenAI GPT-4o", get_openai_llm),
@@ -234,16 +234,16 @@ def get_llm(for_task="general", query_complexity=None):
     for name, get_provider in providers:
         llm = get_provider()
         if llm:
-            print(f"✓ Using {name}")
+            print(f"[OK] Using {name}")
             return llm
     
     raise RuntimeError(
-        "❌ No working LLM found! Please set at least one API key:\n"
-        "\n  🆓 FREE OPTIONS (Recommended):\n"
+        "ERROR: No working LLM found! Please set at least one API key:\n"
+        "\n  FREE OPTIONS (Recommended):\n"
         "  - GROQ_API_KEY (Best FREE option - unlimited, fast, great quality!)\n"
-        "\n  💰 PAY-AS-YOU-GO:\n"
+        "\n  PAY-AS-YOU-GO:\n"
         "  - DEEPSEEK_API_KEY (Very cheap - excellent reasoning)\n"
-        "\n  💎 PREMIUM OPTIONS:\n"
+        "\n  PREMIUM OPTIONS:\n"
         "  - OPENAI_API_KEY (GPT-4o - Best quality)\n"
         "  - ANTHROPIC_API_KEY (Claude - Excellent reasoning)\n"
         "  - GOOGLE_API_KEY (Gemini - Good but has rate limits)\n"
@@ -978,9 +978,28 @@ def get_intelligent_answer(user_question: str):
                     coord_lat = coord_lon = None
         # Extract explicit limit like 'nearest 5 floats' if LLM misses it
         explicit_limit = None
-        limit_match = re.search(r'nearest\s+(\d{1,3})\s+float', user_question, re.IGNORECASE)
+        limit_match = re.search(r'(?:nearest|top|find)\s+(\d{1,3})\s+(?:float|ARGO)', user_question, re.IGNORECASE)
         if limit_match:
             explicit_limit = int(limit_match.group(1))
+        
+        # Extract time constraints from the question (robust fallback)
+        explicit_time_constraint = None
+        month_names = {"jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
+                       "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+                       "aug": 8, "august": 8, "sep": 9, "september": 9, "oct": 10, "october": 10,
+                       "nov": 11, "november": 11, "dec": 12, "december": 12}
+        
+        # Pattern: "March 2025" or "march 2025" or "Mar 2025"
+        month_year_match = re.search(r'\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{4})\b', user_question, re.IGNORECASE)
+        if month_year_match:
+            month_str = month_year_match.group(1).lower()[:3]
+            year_str = month_year_match.group(2)
+            explicit_time_constraint = f"{month_str} {year_str}"
+        else:
+            # Pattern: "2025" alone
+            year_match = re.search(r'\b(20[12]\d)\b', user_question)
+            if year_match:
+                explicit_time_constraint = year_match.group(1)
 
         # --- MASTER SANITIZER STEP ---
         intent["query_type"] = intent.get("query_type", "General")
@@ -1028,6 +1047,11 @@ def get_intelligent_answer(user_question: str):
         # Apply explicit numeric limit if parsed and no limit already
         if explicit_limit and "limit" not in intent:
             intent["limit"] = explicit_limit
+        
+        # Apply explicit time constraint if LLM missed it
+        if explicit_time_constraint and not intent.get("time_constraint"):
+            intent["time_constraint"] = explicit_time_constraint
+            logging.info(f"Applied fallback time_constraint: {explicit_time_constraint}")
 
         # Proximity location fallback and robust distance parsing
         if intent.get("query_type") == "Proximity":

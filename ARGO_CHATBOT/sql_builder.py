@@ -114,46 +114,67 @@ def _build_proximity_query(intent: dict, db_context: dict) -> str:
         base_conditions.append(time_clause)
     where_sql = " AND ".join(base_conditions) if base_conditions else "TRUE"
 
-    base_select_cols = ['"float_id"', '"timestamp"', '"latitude"', '"longitude"']
-    metric_select_cols = [f'"{col}"' for col in metric_cols]
-    latest_select_cols = base_select_cols + metric_select_cols
-    latest_projection = ", ".join(latest_select_cols)
+    base_select_cols = ['"float_id"', '"timestamp"', 'ROUND("latitude"::numeric, 4) as "latitude"', 'ROUND("longitude"::numeric, 4) as "longitude"']
+    metric_select_cols = [f'ROUND("{col}"::numeric, 3) as "{col}"' for col in metric_cols]
+    latest_select_cols = ['"float_id"', '"timestamp"', '"latitude"', '"longitude"'] + [f'"{col}"' for col in metric_cols]
+    raw_projection = ", ".join(['"float_id"', '"timestamp"', '"latitude"', '"longitude"'] + [f'"{col}"' for col in metric_cols])
 
     distance_formula = (
-        f"(6371 * acos(cos(radians({lat})) * cos(radians(\"latitude\")) "
-        f"* cos(radians(\"longitude\") - radians({lon})) + sin(radians({lat})) * sin(radians(\"latitude\"))))"
+        f"ROUND((6371 * acos(LEAST(1.0, GREATEST(-1.0, "
+        f"cos(radians({lat}::float)) * cos(radians(\"latitude\"::float)) "
+        f"* cos(radians(\"longitude\"::float) - radians({lon}::float)) "
+        f"+ sin(radians({lat}::float)) * sin(radians(\"latitude\"::float))))))::numeric, 2)"
     )
 
+    # FIXED: Filter by time FIRST in the base query, then find nearest floats
+    # This ensures we get the nearest floats within the specified time period
+    
+    # Build metric columns for SQL - handle empty metrics case
+    if metric_cols:
+        metric_round_sql = ", " + ", ".join([f'ROUND("{col}"::numeric, 3) as "{col}"' for col in metric_cols])
+        metric_select_sql = ", " + ", ".join([f'"{col}"' for col in metric_cols])
+    else:
+        metric_round_sql = ""
+        metric_select_sql = ""
+    
     query = """
-    WITH ranked_samples AS (
-        SELECT
-            {projection},
-            ROW_NUMBER() OVER (PARTITION BY "float_id" ORDER BY "timestamp" DESC) AS ts_rank
+    WITH time_filtered AS (
+        SELECT {raw_projection}
         FROM argo_data
-        {where_clause}
+        WHERE "latitude" IS NOT NULL AND "longitude" IS NOT NULL
+        {time_filter}
+    ),
+    ranked_samples AS (
+        SELECT
+            "float_id", "timestamp", 
+            ROUND("latitude"::numeric, 4) as "latitude",
+            ROUND("longitude"::numeric, 4) as "longitude"{metric_round},
+            ROW_NUMBER() OVER (PARTITION BY "float_id" ORDER BY "timestamp" DESC) AS ts_rank
+        FROM time_filtered
     ),
     latest_samples AS (
-        SELECT {projection}
+        SELECT "float_id", "timestamp", "latitude", "longitude"{metric_cols_select}
         FROM ranked_samples
         WHERE ts_rank = 1
     ),
     distances AS (
         SELECT
-            {projection},
+            "float_id", "timestamp", "latitude", "longitude"{metric_cols_select},
             {distance_expr} AS distance_km
         FROM latest_samples
     )
-    SELECT {select_list}
+    SELECT "float_id", "timestamp", "latitude", "longitude"{metric_cols_select}, distance_km
     FROM distances
-    {distance_filter}
+    WHERE distance_km <= {max_distance}
     ORDER BY distance_km ASC
     LIMIT {limit};
     """.format(
-        projection=latest_projection,
-        where_clause="" if where_sql == "TRUE" else f"WHERE {where_sql}",
+        raw_projection=raw_projection,
+        time_filter=f"AND {where_sql}" if where_sql != "TRUE" else "",
+        metric_round=metric_round_sql,
+        metric_cols_select=metric_select_sql,
         distance_expr=distance_formula,
-        select_list=", ".join(latest_select_cols + ["distance_km"]),
-        distance_filter=f"WHERE distance_km <= {intent['distance_km']}" if intent.get("distance_km") else "",
+        max_distance=intent.get("distance_km", 500),
         limit=limit,
     )
 
@@ -274,20 +295,29 @@ def _build_general_query(intent: dict, db_context: dict) -> str:
     base_query_from = f"FROM argo_data WHERE {location_clause} AND {time_clause}"
     return f"SELECT * {base_query_from} LIMIT 500;"
 
-def _get_time_clause(time_constraint: str, max_date: datetime) -> str:
-    if not time_constraint or not max_date:
+def _get_time_clause(time_constraint: str, max_date: datetime = None) -> str:
+    if not time_constraint:
         return "1=1"
-    if "last 6 months" in time_constraint:
+    
+    # Default max_date to today if not provided
+    if max_date is None:
+        max_date = datetime.now()
+    
+    if "last 6 months" in time_constraint.lower():
         start_date = (max_date - timedelta(days=180)).strftime('%Y-%m-%d')
         end_date = max_date.strftime('%Y-%m-%d')
         return f'"timestamp" BETWEEN \'{start_date}\' AND \'{end_date}\''
+    
+    # Try to extract year
     year_match = re.search(r'\b(20\d{2})\b', time_constraint)
     if year_match:
         year = year_match.group(1)
+        # Try to extract month
         month_match = re.search(r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\b', time_constraint, re.IGNORECASE)
         if month_match:
-            month_str = month_match.group(1).lower()
+            month_str = month_match.group(1).lower()[:3]
             month_num = {"jan":1, "feb":2, "mar":3, "apr":4, "may":5, "jun":6, "jul":7, "aug":8, "sep":9, "oct":10, "nov":11, "dec":12}[month_str]
             return f'EXTRACT(YEAR FROM "timestamp") = {year} AND EXTRACT(MONTH FROM "timestamp") = {month_num}'
         return f'"timestamp" BETWEEN \'{year}-01-01\' AND \'{year}-12-31\''
+    
     return "1=1"
