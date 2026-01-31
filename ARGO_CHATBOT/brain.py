@@ -212,31 +212,22 @@ def get_llm(for_task="general", query_complexity=None):
     use_premium = os.getenv("USE_PREMIUM_AI", "false").lower() == "true"
     
     if use_premium:
-        # Premium mode: OpenAI > Claude > Gemini > Groq
+        # Premium mode: OpenAI > Claude > Groq > Gemini
         print("💎 Premium AI mode enabled")
         providers = [
             ("OpenAI GPT-4o", get_openai_llm),
             ("Anthropic Claude", get_anthropic_llm),
-            ("Google Gemini", get_gemini_llm),
             ("Groq Llama", get_groq_llm),
-            ("DeepSeek", get_deepseek_llm),
-        ]
-    elif query_complexity == 'simple':
-        # Simple queries: Groq (fast) > Gemini > Others
-        print("⚡ Routing simple query to fast AI")
-        providers = [
-            ("Groq Llama ⚡", get_groq_llm),
             ("Google Gemini", get_gemini_llm),
             ("DeepSeek", get_deepseek_llm),
-            ("OpenAI GPT-4o", get_openai_llm),
-            ("Anthropic Claude", get_anthropic_llm),
         ]
     else:
-        # Complex queries: Gemini (FREE + good reasoning) > Groq > DeepSeek
-        print("🧠 Routing complex query to reasoning AI")
+        # FREE mode: Groq is best - truly unlimited FREE!
+        # Works great for both simple AND complex queries
+        print("⚡ Using FREE AI (Groq)")
         providers = [
-            ("Google Gemini 🧠", get_gemini_llm),
-            ("Groq Llama", get_groq_llm),
+            ("Groq Llama 🚀", get_groq_llm),
+            ("Google Gemini", get_gemini_llm),
             ("DeepSeek", get_deepseek_llm),
             ("OpenAI GPT-4o", get_openai_llm),
             ("Anthropic Claude", get_anthropic_llm),
@@ -252,15 +243,14 @@ def get_llm(for_task="general", query_complexity=None):
     raise RuntimeError(
         "❌ No working LLM found! Please set at least one API key:\n"
         "\n  🆓 FREE OPTIONS (Recommended):\n"
-        "  - GOOGLE_API_KEY (Gemini - FREE + excellent reasoning)\n"
-        "  - GROQ_API_KEY (Fast & free - great for simple queries)\n"
+        "  - GROQ_API_KEY (Best FREE option - unlimited, fast, great quality!)\n"
         "\n  💰 PAY-AS-YOU-GO:\n"
         "  - DEEPSEEK_API_KEY (Very cheap - excellent reasoning)\n"
         "\n  💎 PREMIUM OPTIONS:\n"
         "  - OPENAI_API_KEY (GPT-4o - Best quality)\n"
         "  - ANTHROPIC_API_KEY (Claude - Excellent reasoning)\n"
-        "\n  Get free API keys:\n"
-        "  - Gemini: https://aistudio.google.com/apikey\n"
+        "  - GOOGLE_API_KEY (Gemini - Good but has rate limits)\n"
+        "\n  Get FREE API key:\n"
         "  - Groq: https://console.groq.com/keys"
     )
 

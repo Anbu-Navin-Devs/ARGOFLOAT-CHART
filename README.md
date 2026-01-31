@@ -9,7 +9,7 @@
 ## ✨ Features
 
 - 🤖 **AI Chat** - Ask questions about ocean data in natural language
-- 🧠 **Smart AI Routing** - Groq for fast queries, DeepSeek for complex analysis
+- 🧠 **Powered by Groq** - Lightning fast AI with Llama 3.3 70B (100% FREE!)
 - 🗺️ **Interactive Map** - Explore float positions worldwide
 - 📊 **Dashboard** - Visualize temperature, salinity trends
 - ⬇️ **Data Manager** - Download ARGO data from ERDDAP servers
@@ -64,32 +64,31 @@ python app.py
 # → Opens at http://localhost:5000
 ```
 
-## 🧠 Smart AI Routing
+## 🧠 AI Provider
 
-FloatChart uses intelligent query routing for the best experience:
+FloatChart uses **Groq** - the only 100% FREE AI provider with no rate limits!
 
-| Query Type | AI Used | Why |
-|------------|---------|-----|
-| "Hi", "Hello", "Help" | **Groq ⚡** | Lightning fast responses |
-| Simple questions | **Groq ⚡** | Speed matters |
-| Ocean data queries | **DeepSeek 🧠** | Excellent reasoning |
-| Complex analysis | **DeepSeek 🧠** | Reliable accuracy |
+| Feature | Groq ⚡ |
+|---------|---------|
+| **Price** | 🆓 FREE Forever |
+| **Speed** | ⚡ Lightning fast |
+| **Model** | Llama 3.3 70B |
+| **Limits** | ✅ Unlimited requests |
+| **Quality** | Excellent for all queries |
 
-### 🔑 Getting FREE API Keys
+### 🔑 Getting Your FREE API Key
 
-**1. DeepSeek (Recommended - Best for ocean queries)**
-   - Go to: https://platform.deepseek.com/api_keys
-   - Sign up (email + phone verification)
-   - Click "Create API Key"
-   - Copy the key → Add to `.env` as `DEEPSEEK_API_KEY`
-
-**2. Groq (Recommended - Fast for simple queries)**
+**Groq (Required - 100% FREE!)**
    - Go to: https://console.groq.com/keys
-   - Sign up with Google/GitHub
+   - Sign up with Google/GitHub (takes 30 seconds)
    - Click "Create API Key"
    - Copy the key → Add to `.env` as `GROQ_API_KEY`
 
-**💡 Both are FREE with generous limits!**
+**💡 Why Groq?**
+- ✅ **Truly free** - No credit card needed, ever
+- ✅ **No rate limits** - Query as much as you want
+- ✅ **Fast** - Responses in under 1 second
+- ✅ **Great quality** - Llama 3.3 70B handles all ocean queries
 
 ## 📂 Project Structure
 
@@ -132,7 +131,6 @@ python local_setup.py
 
 ```env
 DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/floatchart
-DEEPSEEK_API_KEY=your_deepseek_key
 GROQ_API_KEY=your_groq_key
 ```
 
@@ -147,7 +145,6 @@ For Render/cloud deployment, use `ARGO_CHATBOT/.env`:
 
 ```env
 DATABASE_URL=postgresql://user:pass@host:26257/db?sslmode=verify-full
-DEEPSEEK_API_KEY=your_deepseek_key
 GROQ_API_KEY=your_groq_key
 ```
 
@@ -204,8 +201,7 @@ python app.py
 
 - [ARGO Program](https://argo.ucsd.edu) - Global ocean observation
 - [CockroachDB](https://cockroachlabs.cloud) - Free 10GB database
-- [DeepSeek](https://platform.deepseek.com) - Free AI (excellent reasoning)
-- [Groq](https://console.groq.com) - Free AI (lightning fast)
+- [Groq](https://console.groq.com) - Free AI (100% FREE, unlimited!)
 - [ERDDAP](https://erddap.ifremer.fr) - ARGO data source
 
 ## 📄 License
