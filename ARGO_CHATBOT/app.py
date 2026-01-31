@@ -245,6 +245,8 @@ def health_check():
     """Health check endpoint with diagnostic info."""
     db_status = "disconnected"
     db_error = None
+    table_exists = False
+    record_count = 0
     engine = get_db_engine()
     
     if engine:
@@ -252,6 +254,23 @@ def health_check():
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             db_status = "connected"
+            
+            # Check if argo_data table exists and has data
+            try:
+                with engine.connect() as conn:
+                    result = conn.execute(text("""
+                        SELECT EXISTS (
+                            SELECT 1 FROM information_schema.tables 
+                            WHERE table_name = 'argo_data'
+                        )
+                    """)).fetchone()
+                    table_exists = result[0] if result else False
+                    
+                    if table_exists:
+                        count_result = conn.execute(text("SELECT COUNT(*) FROM argo_data LIMIT 1")).fetchone()
+                        record_count = count_result[0] if count_result else 0
+            except Exception as e:
+                db_error = f"Table check error: {e}"
         except Exception as e:
             db_error = str(e)
     
@@ -266,6 +285,8 @@ def health_check():
         "status": "healthy",
         "database": db_status,
         "database_error": db_error,
+        "table_exists": table_exists,
+        "record_count": record_count,
         "env_check": env_check,
         "timestamp": datetime.utcnow().isoformat()
     })
