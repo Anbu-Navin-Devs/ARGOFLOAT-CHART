@@ -1446,8 +1446,11 @@
             // Query for nearby floats
             try {
                 const question = `Find nearest 10 ARGO floats within 500km of latitude ${lat.toFixed(2)} longitude ${lng.toFixed(2)}`;
-                const params = new URLSearchParams({ question });
-                const res = await fetch(`${API_BASE}/api/query?${params}`);
+                const res = await fetch(`${API_BASE}/api/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: question })
+                });
                 const result = await res.json();
                 
                 currentFloatData = result.data || [];

@@ -303,8 +303,9 @@ def test_ai():
         return jsonify({"status": "error", "error": str(e)})
 
 @app.route('/api/status')
+@cached(ttl=60)
 def get_status():
-    """Get application status - fast version."""
+    """Get application status with cached record count."""
     engine = get_db_engine()
     
     if not engine:
@@ -312,19 +313,22 @@ def get_status():
             "status": "offline",
             "database": "disconnected",
             "database_connected": False,
-            "total_records": 0
+            "total_records": 0,
+            "records": 0
         })
     
     try:
         with engine.connect() as conn:
-            # Just verify connection - don't count records (too slow on free tier)
-            conn.execute(text("SELECT 1"))
+            # Get approximate count (cached for 60 seconds)
+            result = conn.execute(text("SELECT COUNT(*) FROM argo_data"))
+            record_count = result.scalar() or 0
             
             return jsonify({
                 "status": "online",
                 "database": "connected",
                 "database_connected": True,
-                "total_records": "available"
+                "total_records": record_count,
+                "records": record_count
             })
     except Exception as e:
         print(f"Status check error: {e}")
@@ -370,14 +374,18 @@ def get_stats():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/query', methods=['POST'])
+@app.route('/api/query', methods=['GET', 'POST'])
 def handle_query():
     """Handle natural language queries using AI."""
     if not get_intelligent_answer:
         return jsonify({"error": "AI module not available"}), 500
     
-    data = request.get_json()
-    user_query = data.get('query', '')
+    # Support both GET (from map) and POST (from chat)
+    if request.method == 'GET':
+        user_query = request.args.get('question', '') or request.args.get('query', '')
+    else:
+        data = request.get_json() or {}
+        user_query = data.get('query', '') or data.get('question', '')
     
     if not user_query:
         return jsonify({"error": "No query provided"}), 400
