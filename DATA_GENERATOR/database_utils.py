@@ -99,7 +99,7 @@ def init_database():
             "CREATE INDEX IF NOT EXISTS idx_argo_location ON argo_data(latitude, longitude)",
         ]
         
-        # COMPOSITE INDEXES for faster complex queries (most impactful for performance)
+        # COMPOSITE INDEXES for faster complex queries (CockroachDB compatible - NO INCLUDE clause)
         composite_indexes = [
             # For trajectory/profile queries: SELECT ... WHERE float_id = X ORDER BY timestamp
             "CREATE INDEX IF NOT EXISTS idx_argo_float_time ON argo_data(float_id, timestamp DESC)",
@@ -107,8 +107,10 @@ def init_database():
             "CREATE INDEX IF NOT EXISTS idx_argo_geo_time ON argo_data(latitude, longitude, timestamp DESC)",
             # For time-series queries: timestamp range with location
             "CREATE INDEX IF NOT EXISTS idx_argo_time_geo ON argo_data(timestamp, latitude, longitude)",
-            # For map latest-per-float query: DISTINCT ON (float_id) ORDER BY timestamp DESC
-            "CREATE INDEX IF NOT EXISTS idx_argo_float_time_geo ON argo_data(float_id, timestamp DESC) INCLUDE (latitude, longitude, temperature)",
+            # For map latest-per-float query: covering index for DISTINCT ON queries
+            "CREATE INDEX IF NOT EXISTS idx_argo_float_time_lat_lon ON argo_data(float_id, timestamp DESC, latitude, longitude)",
+            # For statistics queries: temperature/salinity with location
+            "CREATE INDEX IF NOT EXISTS idx_argo_geo_temp ON argo_data(latitude, longitude, temperature, salinity)",
         ]
         
         for idx_sql in indexes + composite_indexes:
