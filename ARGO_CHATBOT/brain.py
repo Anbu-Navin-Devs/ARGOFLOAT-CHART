@@ -12,32 +12,131 @@ import sql_builder
 import time
 
 # ------------------------------------------------------------------
-# LLM Provider Setup - Multi-Provider Support with Smart Fallback
-# Priority: OpenAI GPT-4o > Anthropic Claude > Groq > Google Gemini
+# 🧠 SMART AI ROUTING SYSTEM
+# Routes queries to the best AI based on complexity:
+#   - Simple/Fast queries → Groq (lightning fast, free)
+#   - Complex ocean queries → DeepSeek (excellent reasoning, free)
+#   - Fallback chain for reliability
 # ------------------------------------------------------------------
 
-def get_llm(for_task="general"):
+def classify_query_complexity(question: str) -> str:
     """
-    Initialize the best available LLM based on API keys.
+    Classify a user query as 'simple' or 'complex' to route to appropriate AI.
     
-    Args:
-        for_task: "parsing" for intent extraction, "summary" for response generation
-    
-    Priority:
-    1. OpenAI GPT-4o (Best quality, most reliable JSON parsing)
-    2. Anthropic Claude 3.5 Sonnet (Excellent reasoning)
-    3. Groq Llama 3.3 70B (Fast, good quality, free tier)
-    4. Google Gemini 2.0 Flash (Good fallback)
+    Returns:
+        'simple' - Greetings, small talk, basic questions → Groq (fast)
+        'complex' - Ocean data queries, analysis, reasoning → DeepSeek (reliable)
     """
+    question_lower = question.strip().lower()
+    question_clean = re.sub(r'[^\w\s]', '', question_lower)
+    words = question_clean.split()
+    
+    # === SIMPLE PATTERNS (use Groq for speed) ===
+    simple_patterns = [
+        # Greetings
+        r'^(hi|hello|hey|hola|howdy|sup|yo)[\s!?.]*$',
+        r"^what'?s?\s*up",
+        r'^good\s*(morning|afternoon|evening|night)',
+        # Thanks/bye
+        r'^(thanks?|thx|thank\s*you|bye|goodbye|cya|see\s*ya)',
+        # Identity questions
+        r'^(who|what)\s*(are|r)\s*(you|u)',
+        r'^(your|ur)\s*name',
+        # Help
+        r'^help$',
+        r'^(what|how)\s*(can|do)\s*(you|u)\s*(do|help)',
+        # Simple math
+        r'^\d+\s*[\+\-\*\/]\s*\d+',
+        # Yes/no
+        r'^(yes|no|yeah|nope|ok|okay|sure)[\s!?.]*$',
+    ]
+    
+    for pattern in simple_patterns:
+        if re.search(pattern, question_lower):
+            return 'simple'
+    
+    # Very short queries (1-3 words) without ocean keywords are simple
+    if len(words) <= 3:
+        ocean_keywords = ['float', 'argo', 'ocean', 'temperature', 'salinity', 
+                         'depth', 'pressure', 'trajectory', 'data', 'sea']
+        if not any(kw in question_lower for kw in ocean_keywords):
+            return 'simple'
+    
+    # === COMPLEX PATTERNS (use DeepSeek for reliability) ===
+    complex_indicators = [
+        # Ocean/ARGO specific
+        'float', 'argo', 'ocean', 'temperature', 'salinity', 'pressure',
+        'depth', 'trajectory', 'maritime', 'marine', 'sea', 'water',
+        'latitude', 'longitude', 'coordinate', 'region', 'basin',
+        # Data analysis
+        'average', 'mean', 'maximum', 'minimum', 'trend', 'analyze',
+        'compare', 'statistics', 'count', 'how many', 'show', 'find',
+        'nearest', 'closest', 'between', 'from', 'during', 'in year',
+        # Location names (likely ocean queries)
+        'bay', 'gulf', 'pacific', 'atlantic', 'indian', 'mediterranean',
+        'chennai', 'mumbai', 'arabian', 'bengal', 'caribbean',
+    ]
+    
+    if any(indicator in question_lower for indicator in complex_indicators):
+        return 'complex'
+    
+    # Multi-word queries are generally complex
+    if len(words) >= 5:
+        return 'complex'
+    
+    # Default to complex for safety (better accuracy)
+    return 'complex'
+
+
+def get_groq_llm():
+    """Get Groq LLM for fast, simple queries."""
     load_dotenv()
-    
-    # 1. Try OpenAI GPT-4o first (Best quality)
+    groq_key = os.getenv("GROQ_API_KEY")
+    if groq_key:
+        try:
+            from langchain_groq import ChatGroq
+            model = os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
+            return ChatGroq(
+                model=model,
+                temperature=0,
+                api_key=groq_key,
+                max_retries=2,
+                timeout=15  # Fast timeout for simple queries
+            )
+        except Exception as e:
+            print(f"⚠ Groq unavailable: {e}")
+    return None
+
+
+def get_deepseek_llm():
+    """Get DeepSeek LLM for complex reasoning queries."""
+    load_dotenv()
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    if deepseek_key:
+        try:
+            from langchain_openai import ChatOpenAI
+            model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+            return ChatOpenAI(
+                model=model,
+                temperature=0,
+                api_key=deepseek_key,
+                base_url="https://api.deepseek.com",
+                max_retries=3,
+                timeout=60  # Longer timeout for complex queries
+            )
+        except Exception as e:
+            print(f"⚠ DeepSeek unavailable: {e}")
+    return None
+
+
+def get_openai_llm():
+    """Get OpenAI LLM (premium option)."""
+    load_dotenv()
     openai_key = os.getenv("OPENAI_API_KEY")
     if openai_key:
         try:
             from langchain_openai import ChatOpenAI
             model = os.getenv("OPENAI_MODEL", "gpt-4o")
-            print(f"✓ Using OpenAI model: {model}")
             return ChatOpenAI(
                 model=model,
                 temperature=0,
@@ -45,18 +144,19 @@ def get_llm(for_task="general"):
                 max_retries=3,
                 request_timeout=30
             )
-        except ImportError:
-            print("⚠ langchain-openai not installed. Trying next provider...")
         except Exception as e:
-            print(f"⚠ OpenAI error: {e}. Trying next provider...")
-    
-    # 2. Try Anthropic Claude (Excellent reasoning)
+            print(f"⚠ OpenAI unavailable: {e}")
+    return None
+
+
+def get_anthropic_llm():
+    """Get Anthropic Claude LLM (premium option)."""
+    load_dotenv()
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     if anthropic_key:
         try:
             from langchain_anthropic import ChatAnthropic
             model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
-            print(f"✓ Using Anthropic model: {model}")
             return ChatAnthropic(
                 model=model,
                 temperature=0,
@@ -64,53 +164,105 @@ def get_llm(for_task="general"):
                 max_retries=3,
                 timeout=30
             )
-        except ImportError:
-            print("⚠ langchain-anthropic not installed. Trying next provider...")
         except Exception as e:
-            print(f"⚠ Anthropic error: {e}. Trying next provider...")
-    
-    # 3. Try Groq (Fast and reliable, free tier)
-    groq_key = os.getenv("GROQ_API_KEY")
-    if groq_key:
-        try:
-            from langchain_groq import ChatGroq
-            model = os.getenv("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
-            print(f"✓ Using Groq model: {model}")
-            return ChatGroq(
-                model=model,
-                temperature=0,
-                api_key=groq_key,
-                max_retries=3
-            )
-        except ImportError:
-            print("⚠ langchain-groq not installed. Trying Gemini...")
-        except Exception as e:
-            print(f"⚠ Groq error: {e}. Trying Gemini...")
-    
-    # 4. Fallback to Google Gemini
+            print(f"⚠ Anthropic unavailable: {e}")
+    return None
+
+
+def get_gemini_llm():
+    """Get Google Gemini LLM (fallback option)."""
+    load_dotenv()
     gemini_key = os.getenv("GOOGLE_API_KEY")
     if gemini_key:
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-            print(f"✓ Using Gemini model: {model}")
             return ChatGoogleGenerativeAI(
                 model=model,
                 google_api_key=gemini_key,
                 temperature=0,
                 max_retries=3
             )
-        except ImportError:
-            print("⚠ langchain-google-genai not installed.")
         except Exception as e:
-            print(f"⚠ Gemini error: {e}")
+            print(f"⚠ Gemini unavailable: {e}")
+    return None
+
+
+def get_llm(for_task="general", query_complexity=None):
+    """
+    🧠 SMART AI ROUTER - Get the best LLM based on query complexity.
+    
+    Routing Strategy:
+    ┌─────────────────────────────────────────────────────────────┐
+    │  Query Type     │  Primary AI   │  Fallback Chain          │
+    ├─────────────────────────────────────────────────────────────┤
+    │  Simple/Fast    │  Groq ⚡      │  DeepSeek → OpenAI       │
+    │  Complex/Ocean  │  DeepSeek 🧠  │  OpenAI → Claude → Groq  │
+    │  Premium Mode   │  OpenAI 💎    │  Claude → DeepSeek       │
+    └─────────────────────────────────────────────────────────────┘
+    
+    Args:
+        for_task: "parsing" for intent extraction, "summary" for response generation
+        query_complexity: 'simple' or 'complex' (if None, defaults to complex)
+    
+    Returns:
+        LLM instance ready for use
+    """
+    load_dotenv()
+    
+    # Check if premium mode is enabled (user has paid API keys)
+    use_premium = os.getenv("USE_PREMIUM_AI", "false").lower() == "true"
+    
+    if use_premium:
+        # Premium mode: OpenAI > Claude > DeepSeek > Groq
+        print("💎 Premium AI mode enabled")
+        providers = [
+            ("OpenAI GPT-4o", get_openai_llm),
+            ("Anthropic Claude", get_anthropic_llm),
+            ("DeepSeek", get_deepseek_llm),
+            ("Groq Llama", get_groq_llm),
+            ("Google Gemini", get_gemini_llm),
+        ]
+    elif query_complexity == 'simple':
+        # Simple queries: Groq (fast) > DeepSeek > Others
+        print("⚡ Routing simple query to fast AI")
+        providers = [
+            ("Groq Llama ⚡", get_groq_llm),
+            ("DeepSeek", get_deepseek_llm),
+            ("OpenAI GPT-4o", get_openai_llm),
+            ("Anthropic Claude", get_anthropic_llm),
+            ("Google Gemini", get_gemini_llm),
+        ]
+    else:
+        # Complex queries: DeepSeek (reliable) > OpenAI > Claude > Groq
+        print("🧠 Routing complex query to reasoning AI")
+        providers = [
+            ("DeepSeek 🧠", get_deepseek_llm),
+            ("OpenAI GPT-4o", get_openai_llm),
+            ("Anthropic Claude", get_anthropic_llm),
+            ("Groq Llama", get_groq_llm),
+            ("Google Gemini", get_gemini_llm),
+        ]
+    
+    # Try providers in order until one works
+    for name, get_provider in providers:
+        llm = get_provider()
+        if llm:
+            print(f"✓ Using {name}")
+            return llm
     
     raise RuntimeError(
-        "No working LLM found! Please set at least one API key:\n"
-        "  - OPENAI_API_KEY (for GPT-4o - Best quality)\n"
-        "  - ANTHROPIC_API_KEY (for Claude - Excellent reasoning)\n"
-        "  - GROQ_API_KEY (for Groq Llama - Fast & free)\n"
-        "  - GOOGLE_API_KEY (for Gemini - Good fallback)"
+        "❌ No working LLM found! Please set at least one API key:\n"
+        "\n  🆓 FREE OPTIONS (Recommended):\n"
+        "  - DEEPSEEK_API_KEY (Best free option - excellent reasoning)\n"
+        "  - GROQ_API_KEY (Fast & free - great for simple queries)\n"
+        "\n  💎 PREMIUM OPTIONS:\n"
+        "  - OPENAI_API_KEY (GPT-4o - Best quality)\n"
+        "  - ANTHROPIC_API_KEY (Claude - Excellent reasoning)\n"
+        "  - GOOGLE_API_KEY (Gemini - Good fallback)\n"
+        "\n  Get free API keys:\n"
+        "  - DeepSeek: https://platform.deepseek.com/api_keys\n"
+        "  - Groq: https://console.groq.com/keys"
     )
 
 
@@ -507,7 +659,9 @@ What would you like to explore? 🌊""",
 def get_intelligent_answer(user_question: str):
     """
     Main function to process user questions and return intelligent answers.
-    Uses LLM for intent parsing and response generation with robust error handling.
+    Uses SMART AI ROUTING for optimal performance:
+      - Simple queries → Groq (fast)
+      - Complex ocean queries → DeepSeek (reliable)
     """
     import logging
     logging.basicConfig(filename="backend.log", level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -522,7 +676,11 @@ def get_intelligent_answer(user_question: str):
     try:
         load_dotenv()
         engine = get_engine()
-        llm = get_llm()  # Auto-selects best available LLM
+        
+        # 🧠 SMART AI ROUTING - classify query and route to best AI
+        query_complexity = classify_query_complexity(user_question)
+        logging.info(f"Query complexity: {query_complexity} for: {user_question[:50]}...")
+        llm = get_llm(query_complexity=query_complexity)  # Smart routing!
 
         context = get_database_context(engine)
         if not context:

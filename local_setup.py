@@ -70,30 +70,49 @@ def check_pip():
         return False
 
 def create_env_file(project_root):
-    """Create .env file if it doesn't exist."""
-    chatbot_dir = project_root / "ARGO_CHATBOT"
-    env_file = chatbot_dir / ".env"
+    """
+    Setup environment files for LOCAL development.
+    - Creates .env at PROJECT ROOT from .env.example
+    - ARGO_CHATBOT/.env stays for cloud deployment
+    - Local apps find root .env automatically
+    """
+    root_env = project_root / ".env"
     env_example = project_root / ".env.example"
     
-    if env_file.exists():
-        print_success(".env file already exists")
+    # Only create root .env if it doesn't exist
+    if root_env.exists():
+        print_success("Root .env file already exists")
         return True
     
+    # Copy .env.example to .env (for local use)
     if env_example.exists():
-        shutil.copy(env_example, env_file)
-        print_success("Created .env from .env.example")
+        shutil.copy(env_example, root_env)
+        print_success("Created .env from .env.example (for local development)")
     else:
-        env_content = """# FloatChart Configuration
-# Get free database at: https://cockroachlabs.cloud (10GB free)
+        # Fallback: create minimal .env
+        env_content = """# FloatChart Configuration - Local Setup
+# Copy this to cloud deployment as ARGO_CHATBOT/.env
+
 DATABASE_URL=your_cockroachdb_url_here
 
-# Get free API key at: https://console.groq.com
+# ============================================
+# 🧠 AI PROVIDERS - Smart Routing (Both FREE!)
+# ============================================
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 GROQ_API_KEY=your_groq_api_key_here
+
+# ============================================
+# 💎 Optional: Premium AI providers
+# ============================================
+# OPENAI_API_KEY=your_openai_key
+# ANTHROPIC_API_KEY=your_anthropic_key
+# GOOGLE_API_KEY=your_google_key
 """
-        env_file.write_text(env_content)
-        print_success("Created .env file")
+        root_env.write_text(env_content)
+        print_success("Created .env file at project root")
     
-    print_warning("Please edit ARGO_CHATBOT/.env with your credentials")
+    print_warning("Please edit .env at project root with your credentials")
+    print_warning("Note: ARGO_CHATBOT/.env is for cloud deployment (Render, etc.)")
     return True
 
 def install_dependencies(project_root):
@@ -142,15 +161,15 @@ def verify_installation():
     return True
 
 def check_env_configured(project_root):
-    """Check if .env has real credentials."""
-    env_file = project_root / "ARGO_CHATBOT" / ".env"
+    """Check if .env (at project root) has real credentials."""
+    env_file = project_root / ".env"
     
     if not env_file.exists():
         return False
     
     content = env_file.read_text()
     
-    if "your_cockroachdb_url_here" in content or "your_groq_api_key_here" in content:
+    if "your_cockroachdb_url_here" in content or "your_groq_api_key_here" in content or "your_deepseek_api_key_here" in content:
         return False
     
     return "DATABASE_URL=" in content and len(content) > 50

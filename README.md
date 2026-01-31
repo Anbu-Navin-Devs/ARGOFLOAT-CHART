@@ -9,6 +9,7 @@
 ## ✨ Features
 
 - 🤖 **AI Chat** - Ask questions about ocean data in natural language
+- 🧠 **Smart AI Routing** - Groq for fast queries, DeepSeek for complex analysis
 - 🗺️ **Interactive Map** - Explore float positions worldwide
 - 📊 **Dashboard** - Visualize temperature, salinity trends
 - ⬇️ **Data Manager** - Download ARGO data from ERDDAP servers
@@ -32,13 +33,40 @@ python app.py
 # → Opens at http://localhost:5000
 ```
 
+## 🧠 Smart AI Routing
+
+FloatChart uses intelligent query routing for the best experience:
+
+| Query Type | AI Used | Why |
+|------------|---------|-----|
+| "Hi", "Hello", "Help" | **Groq ⚡** | Lightning fast responses |
+| Simple questions | **Groq ⚡** | Speed matters |
+| Ocean data queries | **DeepSeek 🧠** | Excellent reasoning |
+| Complex analysis | **DeepSeek 🧠** | Reliable accuracy |
+
+### 🔑 Getting FREE API Keys
+
+**1. DeepSeek (Recommended - Best for ocean queries)**
+   - Go to: https://platform.deepseek.com/api_keys
+   - Sign up (email + phone verification)
+   - Click "Create API Key"
+   - Copy the key → Add to `.env` as `DEEPSEEK_API_KEY`
+
+**2. Groq (Recommended - Fast for simple queries)**
+   - Go to: https://console.groq.com/keys
+   - Sign up with Google/GitHub
+   - Click "Create API Key"
+   - Copy the key → Add to `.env` as `GROQ_API_KEY`
+
+**💡 Both are FREE with generous limits!**
+
 ## 📂 Project Structure
 
 ```
 FloatChart/
 ├── ARGO_CHATBOT/          # Chat Application
 │   ├── app.py             # Flask server
-│   ├── brain.py           # AI query logic
+│   ├── brain.py           # AI query logic (smart routing)
 │   ├── sql_builder.py     # SQL generation
 │   └── static/            # Web UI (HTML, CSS, JS)
 │
@@ -62,8 +90,9 @@ Create `ARGO_CHATBOT/.env`:
 # Database (CockroachDB - Free 10GB at cockroachlabs.cloud)
 DATABASE_URL=postgresql://user:pass@host:26257/database?sslmode=verify-full
 
-# AI Provider (Groq - Free at console.groq.com)
-GROQ_API_KEY=your_api_key_here
+# AI Providers (Both FREE - recommended to set both!)
+DEEPSEEK_API_KEY=your_deepseek_key   # Complex queries
+GROQ_API_KEY=your_groq_key           # Simple/fast queries
 ```
 
 ## 📥 Getting Data
@@ -112,7 +141,8 @@ python app.py
 
 - [ARGO Program](https://argo.ucsd.edu) - Global ocean observation
 - [CockroachDB](https://cockroachlabs.cloud) - Free 10GB database
-- [Groq](https://console.groq.com) - Free AI API
+- [DeepSeek](https://platform.deepseek.com) - Free AI (excellent reasoning)
+- [Groq](https://console.groq.com) - Free AI (lightning fast)
 - [ERDDAP](https://erddap.ifremer.fr) - ARGO data source
 
 ## 📄 License
