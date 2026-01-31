@@ -252,24 +252,53 @@ def get_status():
     
     if not engine:
         return jsonify({
-            "status": "running",
+            "status": "offline",
+            "database": "disconnected",
             "database_connected": False,
             "total_records": 0
         })
     
     try:
         with engine.connect() as conn:
+            # Get basic stats
             result = conn.execute(text("SELECT COUNT(*) FROM argo_data"))
             total_records = result.scalar() or 0
             
+            # Get date range and unique floats
+            stats = conn.execute(text("""
+                SELECT 
+                    MIN(timestamp)::date as min_date,
+                    MAX(timestamp)::date as max_date,
+                    COUNT(DISTINCT float_id) as unique_floats
+                FROM argo_data
+            """)).fetchone()
+            
+            data_range = None
+            unique_floats = 0
+            if stats:
+                min_date = stats[0]
+                max_date = stats[1]
+                unique_floats = stats[2] or 0
+                if min_date and max_date:
+                    data_range = {
+                        "start": min_date.strftime("%b %Y") if hasattr(min_date, 'strftime') else str(min_date)[:7],
+                        "end": max_date.strftime("%b %Y") if hasattr(max_date, 'strftime') else str(max_date)[:7]
+                    }
+            
             return jsonify({
-                "status": "running",
+                "status": "online",
+                "database": "connected",
                 "database_connected": True,
-                "total_records": total_records
+                "total_records": total_records,
+                "records": total_records,
+                "unique_floats": unique_floats,
+                "data_range": data_range
             })
     except Exception as e:
+        print(f"Status check error: {e}")
         return jsonify({
-            "status": "running",
+            "status": "offline",
+            "database": "disconnected",
             "database_connected": False,
             "total_records": 0,
             "error": str(e)
