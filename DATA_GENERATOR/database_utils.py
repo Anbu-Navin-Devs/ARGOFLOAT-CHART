@@ -91,18 +91,31 @@ def init_database():
             )
         """)
         
-        # Create indexes for common queries
+        # Create indexes for common queries - OPTIMIZED for deployed performance
+        # Primary indexes for individual columns
         indexes = [
             "CREATE INDEX IF NOT EXISTS idx_argo_timestamp ON argo_data(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_argo_float ON argo_data(float_id)",
             "CREATE INDEX IF NOT EXISTS idx_argo_location ON argo_data(latitude, longitude)",
         ]
         
-        for idx_sql in indexes:
+        # COMPOSITE INDEXES for faster complex queries (most impactful for performance)
+        composite_indexes = [
+            # For trajectory/profile queries: SELECT ... WHERE float_id = X ORDER BY timestamp
+            "CREATE INDEX IF NOT EXISTS idx_argo_float_time ON argo_data(float_id, timestamp DESC)",
+            # For proximity queries with time filter: bounding box + time range
+            "CREATE INDEX IF NOT EXISTS idx_argo_geo_time ON argo_data(latitude, longitude, timestamp DESC)",
+            # For time-series queries: timestamp range with location
+            "CREATE INDEX IF NOT EXISTS idx_argo_time_geo ON argo_data(timestamp, latitude, longitude)",
+            # For map latest-per-float query: DISTINCT ON (float_id) ORDER BY timestamp DESC
+            "CREATE INDEX IF NOT EXISTS idx_argo_float_time_geo ON argo_data(float_id, timestamp DESC) INCLUDE (latitude, longitude, temperature)",
+        ]
+        
+        for idx_sql in indexes + composite_indexes:
             try:
                 cursor.execute(idx_sql)
             except Exception:
-                pass
+                pass  # Index may already exist or syntax differs
         
         conn.commit()
         cursor.close()

@@ -62,32 +62,72 @@ app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='/static')
 CORS(app)
 
 # =============================================
-# CACHING
+# CACHING - Optimized with LRU eviction & endpoint-specific TTLs
 # =============================================
 _cache = {}
 _cache_expiry = {}
-CACHE_TTL = 300  # 5 minutes
+_cache_access = {}  # Track last access for LRU
+CACHE_TTL = 300  # Default 5 minutes
+MAX_CACHE_SIZE = 100  # Limit cache entries to prevent memory bloat
+
+# Endpoint-specific TTLs (seconds)
+CACHE_TTLS = {
+    'get_status': 60,        # Status changes slowly
+    'get_stats': 120,        # Stats can be cached longer
+    'get_floats': 600,       # Float list rarely changes
+    'get_map_points': 120,   # Map points update periodically
+    'get_data': 60,          # Data queries - moderate cache
+    'handle_query': 180,     # AI queries - cache for repeated questions
+}
+
+def _normalize_cache_key(key: str) -> str:
+    """Normalize cache key by sorting query params for consistency."""
+    if '?' in key:
+        base, params = key.split('?', 1)
+        # Sort params alphabetically
+        sorted_params = '&'.join(sorted(params.split('&')))
+        return f"{base}?{sorted_params}"
+    return key
+
+def _evict_lru():
+    """Evict least recently used cache entries if over limit."""
+    if len(_cache) >= MAX_CACHE_SIZE:
+        # Find and remove least recently accessed
+        if _cache_access:
+            oldest_key = min(_cache_access.keys(), key=lambda k: _cache_access.get(k, 0))
+            _cache.pop(oldest_key, None)
+            _cache_expiry.pop(oldest_key, None)
+            _cache_access.pop(oldest_key, None)
 
 def cache_response(key, data, ttl=CACHE_TTL):
-    """Store data in cache with expiry."""
+    """Store data in cache with expiry and LRU tracking."""
+    key = _normalize_cache_key(key)
+    _evict_lru()
     _cache[key] = data
     _cache_expiry[key] = time.time() + ttl
+    _cache_access[key] = time.time()
 
 def get_cached(key):
-    """Get cached data if not expired."""
+    """Get cached data if not expired, with LRU update."""
+    key = _normalize_cache_key(key)
     if key in _cache:
         if time.time() < _cache_expiry.get(key, 0):
+            _cache_access[key] = time.time()  # Update LRU
             return _cache[key]
         else:
-            del _cache[key]
-            del _cache_expiry[key]
+            # Expired - clean up
+            _cache.pop(key, None)
+            _cache_expiry.pop(key, None)
+            _cache_access.pop(key, None)
     return None
 
-def cached(ttl=CACHE_TTL):
-    """Decorator for caching endpoint responses."""
+def cached(ttl=None):
+    """Decorator for caching endpoint responses with endpoint-specific TTLs."""
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Use endpoint-specific TTL or provided TTL or default
+            cache_ttl = ttl or CACHE_TTLS.get(f.__name__, CACHE_TTL)
             cache_key = f"{f.__name__}:{request.full_path}"
             cached_data = get_cached(cache_key)
             if cached_data:
@@ -99,7 +139,7 @@ def cached(ttl=CACHE_TTL):
                 data = result
                 status = 200
             if status == 200:
-                cache_response(cache_key, data.get_json() if hasattr(data, 'get_json') else data, ttl)
+                cache_response(cache_key, data.get_json() if hasattr(data, 'get_json') else data, cache_ttl)
             return result
         return decorated_function
     return decorator
@@ -303,7 +343,7 @@ def test_ai():
         return jsonify({"status": "error", "error": str(e)})
 
 @app.route('/api/status')
-@cached(ttl=60)
+@cached()  # Uses CACHE_TTLS['get_status'] = 60s
 def get_status():
     """Get application status with cached record count."""
     engine = get_db_engine()
@@ -341,7 +381,7 @@ def get_status():
         })
 
 @app.route('/api/stats')
-@cached(ttl=60)
+@cached()  # Uses CACHE_TTLS['get_stats'] = 120s
 def get_stats():
     """Get database statistics for dashboard."""
     engine = get_db_engine()
@@ -374,9 +414,47 @@ def get_stats():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# AI Query cache - separate from endpoint cache for smarter matching
+_query_cache = {}
+_query_cache_expiry = {}
+QUERY_CACHE_TTL = 300  # 5 minutes for repeated identical queries
+
+def _normalize_query(query: str) -> str:
+    """Normalize query for cache key matching."""
+    import re
+    # Lowercase, remove extra spaces, strip punctuation at end
+    normalized = query.lower().strip()
+    normalized = re.sub(r'\s+', ' ', normalized)
+    normalized = re.sub(r'[?.!]+$', '', normalized)
+    return normalized
+
+def get_cached_query(query: str):
+    """Get cached AI query result."""
+    key = _normalize_query(query)
+    if key in _query_cache:
+        if time.time() < _query_cache_expiry.get(key, 0):
+            return _query_cache[key]
+        else:
+            _query_cache.pop(key, None)
+            _query_cache_expiry.pop(key, None)
+    return None
+
+def cache_query_result(query: str, result: dict):
+    """Cache AI query result."""
+    key = _normalize_query(query)
+    # Only cache successful results with data
+    if result and 'error' not in result:
+        _query_cache[key] = result
+        _query_cache_expiry[key] = time.time() + QUERY_CACHE_TTL
+        # Limit cache size
+        if len(_query_cache) > 50:
+            oldest = min(_query_cache_expiry.keys(), key=lambda k: _query_cache_expiry[k])
+            _query_cache.pop(oldest, None)
+            _query_cache_expiry.pop(oldest, None)
+
 @app.route('/api/query', methods=['GET', 'POST'])
 def handle_query():
-    """Handle natural language queries using AI."""
+    """Handle natural language queries using AI - with intelligent caching."""
     if not get_intelligent_answer:
         return jsonify({"error": "AI module not available"}), 500
     
@@ -390,8 +468,16 @@ def handle_query():
     if not user_query:
         return jsonify({"error": "No query provided"}), 400
     
+    # Check query cache first for instant response on repeated questions
+    cached_result = get_cached_query(user_query)
+    if cached_result:
+        cached_result['cached'] = True  # Mark as cached response
+        return jsonify(cached_result)
+    
     try:
         response = get_intelligent_answer(user_query)
+        # Cache successful responses
+        cache_query_result(user_query, response)
         return jsonify(response)
     except Exception as e:
         import traceback
@@ -441,7 +527,7 @@ def handle_query_stream():
     )
 
 @app.route('/api/data', methods=['GET'])
-@cached(ttl=30)
+@cached()  # Uses CACHE_TTLS['get_data'] = 60s
 def get_data():
     """Get ARGO float data with filtering."""
     engine = get_db_engine()
@@ -532,7 +618,7 @@ def get_data():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/floats')
-@cached(ttl=300)
+@cached()  # Uses CACHE_TTLS['get_floats'] = 600s (10 min)
 def get_floats():
     """Get list of unique float IDs."""
     engine = get_db_engine()
@@ -555,7 +641,7 @@ def get_floats():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/map/points')
-@cached(ttl=60)
+@cached()  # Uses CACHE_TTLS['get_map_points'] = 120s
 def get_map_points():
     """Get float positions for map visualization."""
     engine = get_db_engine()

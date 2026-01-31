@@ -154,40 +154,38 @@ def _build_proximity_query(intent: dict, db_context: dict) -> str:
         metric_round_sql = ""
         metric_select_sql = ""
     
+    # OPTIMIZED: Simplified CTE structure - reduces query planning time
+    # Use indexed columns in WHERE first, then compute distance only on filtered set
     query = """
-    WITH time_filtered AS (
-        SELECT {raw_projection}
-        FROM argo_data
-        WHERE "latitude" IS NOT NULL AND "longitude" IS NOT NULL
-        {time_filter}
-    ),
-    ranked_samples AS (
-        SELECT
-            "float_id", "timestamp", 
-            ROUND("latitude"::numeric, 4) as "latitude",
-            ROUND("longitude"::numeric, 4) as "longitude"{metric_round},
-            ROW_NUMBER() OVER (PARTITION BY "float_id" ORDER BY "timestamp" DESC) AS ts_rank
-        FROM time_filtered
-    ),
-    latest_samples AS (
+    WITH filtered_data AS (
         SELECT "float_id", "timestamp", "latitude", "longitude"{metric_cols_select}
-        FROM ranked_samples
-        WHERE ts_rank = 1
+        FROM argo_data
+        WHERE "latitude" IS NOT NULL 
+          AND "longitude" IS NOT NULL
+          AND {bounding_box}
+          {time_filter}
     ),
-    distances AS (
-        SELECT
-            "float_id", "timestamp", "latitude", "longitude"{metric_cols_select},
+    latest_per_float AS (
+        SELECT DISTINCT ON ("float_id")
+            "float_id", "timestamp",
+            ROUND("latitude"::numeric, 4) as "latitude",
+            ROUND("longitude"::numeric, 4) as "longitude"{metric_round}
+        FROM filtered_data
+        ORDER BY "float_id", "timestamp" DESC
+    ),
+    with_distance AS (
+        SELECT *,
             {distance_expr} AS distance_km
-        FROM latest_samples
+        FROM latest_per_float
     )
     SELECT "float_id", "timestamp", "latitude", "longitude"{metric_cols_select}, distance_km
-    FROM distances
+    FROM with_distance
     WHERE distance_km <= {max_distance}
     ORDER BY distance_km ASC
     LIMIT {limit};
     """.format(
-        raw_projection=raw_projection,
-        time_filter=f"AND {where_sql}" if where_sql != "TRUE" else "",
+        bounding_box=bounding_box,
+        time_filter=f"AND {time_clause}" if time_clause != "1=1" else "",
         metric_round=metric_round_sql,
         metric_cols_select=metric_select_sql,
         distance_expr=distance_formula,

@@ -657,23 +657,22 @@ LOCATIONS = {
     "south pole": "(\"latitude\" BETWEEN -90 AND -85)"
 }
 
-# Cache for database context with TTL
+# Cache for database context with TTL - OPTIMIZED
 _db_context_cache = None
 _db_context_timestamp = None
-DB_CONTEXT_TTL = 300  # Cache for 5 minutes
+DB_CONTEXT_TTL = 600  # Cache for 10 minutes (data doesn't change frequently)
 
 def get_database_context(engine):
     global db_context, _db_context_cache, _db_context_timestamp
     
-    # Check if cached context is still valid (5-minute TTL)
+    # Check if cached context is still valid (10-minute TTL for deployed performance)
     if _db_context_cache and _db_context_timestamp:
         elapsed = time.time() - _db_context_timestamp
         if elapsed < DB_CONTEXT_TTL:
-            print(f"[CACHE HIT] Using cached db_context (age: {int(elapsed)}s)")
+            # Silent cache hit for cleaner logs in production
             return _db_context_cache
     
     try:
-        print("[DB] Fetching database context (MIN/MAX timestamps)...")
         with engine.connect() as connection:
             # First check if table exists
             result = connection.execute(text("""
@@ -687,20 +686,23 @@ def get_database_context(engine):
                 print("WARNING: argo_data table does not exist!")
                 return None
             
-            # OPTIMIZATION: Use approximate query for faster results on large tables
-            result = connection.execute(text('SELECT MIN("timestamp"), MAX("timestamp") FROM argo_data')).fetchone()
+            # OPTIMIZATION: Use indexed timestamp column for faster MIN/MAX
+            # With idx_argo_timestamp index, this is O(log n) not O(n)
+            result = connection.execute(text('''
+                SELECT MIN("timestamp"), MAX("timestamp") FROM argo_data
+            ''')).fetchone()
             min_date, max_date = result
             
             if not min_date or not max_date:
                 print("WARNING: argo_data table is empty!")
                 return None
             
-            # Cache the result
+            # Cache the result with extended TTL
             _db_context_cache = { "min_date": min_date, "max_date": max_date, "max_date_obj": max_date }
             _db_context_timestamp = time.time()
             db_context = _db_context_cache
             
-            print(f"[DB] Context loaded: {db_context['min_date']} to {db_context['max_date']}")
+            print(f"[DB] Context refreshed: {db_context['min_date']} to {db_context['max_date']}")
             return db_context
     except Exception as e:
         print(f"CRITICAL ERROR: Could not get database context. {e}"); return None
