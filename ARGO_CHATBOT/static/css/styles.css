@@ -1940,6 +1940,33 @@ body {
 }
 
 /* ========================================
+   Data Manager Link (Local Mode Only)
+   ======================================== */
+
+.data-manager-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #2d5a3d, #1e3a2a);
+    border: 1px solid #3d7a5d;
+    border-radius: var(--radius);
+    color: #8fdfaf;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-decoration: none;
+}
+
+.data-manager-btn:hover {
+    border-color: #5faf7f;
+    background: linear-gradient(135deg, #3d7a5d, #2d5a3d);
+    color: #afffcf;
+    box-shadow: 0 0 15px rgba(95, 175, 127, 0.3);
+}
+
+/* ========================================
    Responsive - Tablet (max-width: 1024px)
    ======================================== */
 

@@ -64,6 +64,15 @@
                         </svg>
                         <span>Dashboard</span>
                     </a>
+                    
+                    <!-- Data Manager Button (Local Mode Only) -->
+                    <a href="/data-manager" class="data-manager-btn" id="dataManagerBtn" title="Manage Local Data" style="display: none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/>
+                            <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                        <span>Data Manager</span>
+                    </a>
                 </div>
                 
                 <!-- Map Legend -->
@@ -539,5 +548,25 @@
     
     <!-- Main App JavaScript -->
     <script src="/static/js/app.js"></script>
+    
+    <!-- Check for local mode and show Data Manager button -->
+    <script>
+        (async function checkLocalMode() {
+            try {
+                const response = await fetch('/api/local-mode');
+                const data = await response.json();
+                if (data.local_mode && data.data_manager_url) {
+                    const btn = document.getElementById('dataManagerBtn');
+                    if (btn) {
+                        btn.style.display = 'flex';
+                        btn.href = data.data_manager_url;
+                        btn.target = '_blank';
+                    }
+                }
+            } catch (e) {
+                // Silently ignore - button stays hidden in cloud mode
+            }
+        })();
+    </script>
 </body>
 </html>

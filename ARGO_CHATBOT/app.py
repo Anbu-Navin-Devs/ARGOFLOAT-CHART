@@ -1,5 +1,7 @@
 """
-FloatChart - Flask API server for ocean data queries.
+FloatChart - Chat Application
+Flask API server for AI-powered ocean data queries.
+This is the main chat interface - for data management, use DATA_GENERATOR/app.py
 """
 
 import os
@@ -11,8 +13,8 @@ from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 from flask_cors import CORS
 import re
-from database_utils import LOCATIONS
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Import the brain module for intelligent queries
 try:
@@ -20,27 +22,47 @@ try:
 except ImportError:
     get_intelligent_answer = None
 
-# Load .env only if it exists (for local development)
-try:
+# Predefined locations for search queries
+LOCATIONS = {
+    "arabian sea": "AND \"latitude\" BETWEEN 5 AND 25 AND \"longitude\" BETWEEN 50 AND 75",
+    "bay of bengal": "AND \"latitude\" BETWEEN 5 AND 22 AND \"longitude\" BETWEEN 80 AND 95",
+    "equator": "AND \"latitude\" BETWEEN -2 AND 2",
+    "chennai": "AND \"latitude\" BETWEEN 12.5 AND 13.5 AND \"longitude\" BETWEEN 80 AND 80.5",
+    "mumbai": "AND \"latitude\" BETWEEN 18.5 AND 19.5 AND \"longitude\" BETWEEN 72.5 AND 73",
+    "sri lanka": "AND \"latitude\" BETWEEN 5 AND 10 AND \"longitude\" BETWEEN 79 AND 82"
+}
+
+# Load .env from multiple possible locations
+def load_environment():
+    """Load .env from current directory or project root."""
+    env_paths = [
+        Path(".env"),
+        Path(__file__).parent / ".env",
+        Path(__file__).parent.parent / ".env",
+    ]
+    for p in env_paths:
+        if p.exists():
+            load_dotenv(p, override=False)
+            return
     load_dotenv()
-except:
-    pass
+
+load_environment()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     print("⚠️  WARNING: DATABASE_URL not set - app will run but database features will be unavailable")
-    DATABASE_URL = None  # Allow app to run without database
+    DATABASE_URL = None
 
 # Get the directory where this script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='/static')
-CORS(app)  # Enable Cross-Origin Resource Sharing
+CORS(app)
 
 # =============================================
-# CACHING & RATE LIMITING
+# CACHING
 # =============================================
 _cache = {}
 _cache_expiry = {}
@@ -82,14 +104,18 @@ def cached(ttl=CACHE_TTL):
         return decorated_function
     return decorator
 
-# --- DATABASE CONNECTION ---
+# =============================================
+# DATABASE CONNECTION
+# =============================================
 _engine = None
 
 def get_db_engine():
-    """Get or create database engine with lazy initialization and reconnection."""
+    """Get or create database engine with lazy initialization."""
     global _engine
     
-    # If we have an engine, test if it's still working
+    if not DATABASE_URL:
+        return None
+    
     if _engine is not None:
         try:
             with _engine.connect() as conn:
@@ -99,7 +125,6 @@ def get_db_engine():
             print(f"Database connection lost, reconnecting... ({e})")
             _engine = None
     
-    # Create new engine
     try:
         _engine = create_engine(
             DATABASE_URL,
@@ -116,43 +141,33 @@ def get_db_engine():
                 "keepalives_count": 5
             }
         )
-        # Test the connection
         with _engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        print("Database connected successfully.")
+        print("✅ Database connected successfully.")
         return _engine
     except Exception as e:
-        print(f"Database connection error: {e}")
+        print(f"❌ Database connection error: {e}")
         _engine = None
         return None
 
-# Legacy compatibility
-engine = None  # Will be lazy-loaded
-
 # =============================================
-# STATIC FILE ROUTES - Serve Web Application
+# STATIC FILE ROUTES
 # =============================================
 
 @app.route('/')
 def serve_index():
-    """Serve the main web application."""
+    """Serve the main chat interface."""
     return send_from_directory(STATIC_DIR, 'index.html')
 
 @app.route('/map')
 def serve_map():
-    """Serve the interactive map explorer page."""
+    """Serve the interactive map explorer."""
     return send_from_directory(STATIC_DIR, 'map.html')
 
 @app.route('/dashboard')
 def serve_dashboard():
-    """Serve the analytics dashboard page."""
+    """Serve the analytics dashboard."""
     return send_from_directory(STATIC_DIR, 'dashboard.html')
-
-@app.route('/manifest.json')
-@app.route('/static/manifest.json')
-def serve_manifest():
-    """Serve PWA manifest."""
-    return send_from_directory(STATIC_DIR, 'manifest.json')
 
 @app.route('/sw.js')
 def serve_sw():
@@ -161,7 +176,7 @@ def serve_sw():
 
 @app.route('/static/<path:path>')
 def serve_static(path):
-    """Serve static files (CSS, JS, images)."""
+    """Serve static files."""
     return send_from_directory(STATIC_DIR, path)
 
 @app.route('/static/css/<path:path>')
@@ -178,261 +193,165 @@ def serve_js(path):
     response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
     return response
 
-@app.route('/static/icons/<path:path>')
-def serve_icons(path):
-    """Serve icon files."""
-    return send_from_directory(os.path.join(STATIC_DIR, 'icons'), path)
+# =============================================
+# LOCAL MODE DETECTION
+# =============================================
+
+def is_local_mode():
+    """Check if running in local mode (not cloud deployment)."""
+    cloud_indicators = [
+        "RENDER", "RAILWAY_ENVIRONMENT", "HEROKU_APP_ID",
+        "VERCEL", "FLY_APP_NAME", "K_SERVICE", "DYNO"
+    ]
+    for indicator in cloud_indicators:
+        if os.getenv(indicator):
+            return False
+    
+    if os.getenv("LOCAL_MODE", "").lower() == "true":
+        return True
+    
+    # Default to local if no cloud indicators found
+    return True
 
 # =============================================
 # API ENDPOINTS
 # =============================================
 
+@app.route('/api/local-mode')
+def check_local_mode():
+    """Check if running in local mode (data manager available)."""
+    return jsonify({
+        "local_mode": is_local_mode(),
+        "data_manager_url": "http://localhost:5001" if is_local_mode() else None
+    })
+
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint."""
+    db_status = "connected"
+    engine = get_db_engine()
+    
+    if not engine:
+        db_status = "disconnected"
+    
+    return jsonify({
+        "status": "healthy",
+        "database": db_status,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
 @app.route('/api/status')
 def get_status():
-    """Check API and database connection status."""
-    db = get_db_engine()
-    if not db:
+    """Get application status including database stats."""
+    engine = get_db_engine()
+    
+    if not engine:
         return jsonify({
-            "status": "error", 
-            "database": "disconnected",
-            "hint": "Check DATABASE_URL environment variable"
-        }), 500
+            "status": "running",
+            "database_connected": False,
+            "total_records": 0
+        })
+    
     try:
-        with db.connect() as connection:
-            result = connection.execute(text("""
-                SELECT COUNT(*), 
-                       COUNT(DISTINCT float_id),
-                       MIN(timestamp), 
-                       MAX(timestamp) 
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM argo_data"))
+            total_records = result.scalar() or 0
+            
+            return jsonify({
+                "status": "running",
+                "database_connected": True,
+                "total_records": total_records
+            })
+    except Exception as e:
+        return jsonify({
+            "status": "running",
+            "database_connected": False,
+            "total_records": 0,
+            "error": str(e)
+        })
+
+@app.route('/api/stats')
+@cached(ttl=60)
+def get_stats():
+    """Get database statistics for dashboard."""
+    engine = get_db_engine()
+    
+    if not engine:
+        return jsonify({"error": "Database not connected"}), 500
+    
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT 
+                    COUNT(*) as total_records,
+                    COUNT(DISTINCT float_id) as unique_floats,
+                    MIN(timestamp) as min_date,
+                    MAX(timestamp) as max_date,
+                    ROUND(AVG(temperature)::numeric, 2) as avg_temp,
+                    ROUND(AVG(salinity)::numeric, 2) as avg_salinity
                 FROM argo_data
             """))
             row = result.fetchone()
-            count, floats, min_date, max_date = row
-        
-        # Format dates
-        min_str = min_date.strftime("%Y-%m-%d") if min_date else None
-        max_str = max_date.strftime("%Y-%m-%d") if max_date else None
-        
-        return jsonify({
-            "status": "online", 
-            "database": "connected",
-            "records": count,
-            "unique_floats": floats,
-            "data_range": {
-                "start": min_str,
-                "end": max_str
-            }
-        })
-    except Exception as e:
-        return jsonify({
-            "status": "online", 
-            "database": "error", 
-            "message": str(e)
-        }), 500
-
-
-# Region definitions for filtering
-OCEAN_REGIONS = {
-    "all": {"name": "All Regions", "lat_min": -90, "lat_max": 90, "lon_min": -180, "lon_max": 180},
-    "bay_of_bengal": {"name": "Bay of Bengal", "lat_min": 5, "lat_max": 22, "lon_min": 80, "lon_max": 95},
-    "arabian_sea": {"name": "Arabian Sea", "lat_min": 5, "lat_max": 25, "lon_min": 50, "lon_max": 75},
-    "indian_ocean": {"name": "Indian Ocean", "lat_min": -40, "lat_max": 25, "lon_min": 30, "lon_max": 120},
-    "pacific": {"name": "Pacific Ocean", "lat_min": -60, "lat_max": 60, "lon_min": 100, "lon_max": 180},
-    "atlantic": {"name": "Atlantic Ocean", "lat_min": -60, "lat_max": 60, "lon_min": -80, "lon_max": 0},
-    "mediterranean": {"name": "Mediterranean Sea", "lat_min": 30, "lat_max": 46, "lon_min": -6, "lon_max": 36},
-}
-
-
-@app.route('/api/regions')
-def get_regions():
-    """Get available ocean regions for filtering."""
-    return jsonify([{"id": k, "name": v["name"]} for k, v in OCEAN_REGIONS.items()])
-
-
-@app.route('/api/dashboard/stats')
-@cached(ttl=300)
-def get_dashboard_stats():
-    """Get real statistics for the dashboard with optional region filter."""
-    db = get_db_engine()
-    if not db:
-        return jsonify({"error": "Database not connected"}), 500
-    
-    # Get region filter from query params
-    region_id = request.args.get('region', 'all')
-    region = OCEAN_REGIONS.get(region_id, OCEAN_REGIONS['all'])
-    
-    # Build WHERE clause for region
-    region_filter = ""
-    if region_id != "all":
-        region_filter = f"""
-            AND latitude >= {region['lat_min']} AND latitude <= {region['lat_max']}
-            AND longitude >= {region['lon_min']} AND longitude <= {region['lon_max']}
-        """
-    
-    try:
-        with db.connect() as conn:
-            # Get overview stats with region filter
-            result = conn.execute(text(f"""
-                SELECT 
-                    ROUND(AVG(temperature)::numeric, 1) as avg_temp,
-                    ROUND(AVG(salinity)::numeric, 1) as avg_salinity,
-                    COUNT(DISTINCT float_id) as float_count,
-                    MAX(pressure) as max_depth,
-                    COUNT(*) as total_records
-                FROM argo_data
-                WHERE temperature IS NOT NULL
-                {region_filter}
-            """))
-            stats = result.fetchone()
-            
-            # Get temperature distribution with region filter
-            temp_result = conn.execute(text(f"""
-                SELECT 
-                    CASE 
-                        WHEN temperature >= 20 AND temperature < 22 THEN '20-22'
-                        WHEN temperature >= 22 AND temperature < 24 THEN '22-24'
-                        WHEN temperature >= 24 AND temperature < 26 THEN '24-26'
-                        WHEN temperature >= 26 AND temperature < 28 THEN '26-28'
-                        WHEN temperature >= 28 AND temperature < 30 THEN '28-30'
-                        WHEN temperature >= 30 THEN '30+'
-                        ELSE 'Other'
-                    END as range,
-                    COUNT(*) as count
-                FROM argo_data
-                WHERE temperature IS NOT NULL
-                {region_filter}
-                GROUP BY range
-                ORDER BY range
-            """))
-            temp_dist = {row[0]: row[1] for row in temp_result.fetchall()}
-            
-            # Get salinity distribution with region filter
-            sal_result = conn.execute(text(f"""
-                SELECT 
-                    CASE 
-                        WHEN salinity >= 33 AND salinity < 34 THEN '33-34'
-                        WHEN salinity >= 34 AND salinity < 35 THEN '34-35'
-                        WHEN salinity >= 35 AND salinity < 36 THEN '35-36'
-                        WHEN salinity >= 36 AND salinity < 37 THEN '36-37'
-                        ELSE 'Other'
-                    END as range,
-                    COUNT(*) as count
-                FROM argo_data
-                WHERE salinity IS NOT NULL
-                {region_filter}
-                GROUP BY range
-                ORDER BY range
-            """))
-            sal_dist = {row[0]: row[1] for row in sal_result.fetchall()}
             
             return jsonify({
-                "region": region["name"],
-                "overview": {
-                    "avg_temperature": float(stats[0]) if stats[0] else 0,
-                    "avg_salinity": float(stats[1]) if stats[1] else 0,
-                    "float_count": stats[2] or 0,
-                    "max_depth": float(stats[3]) if stats[3] else 0,
-                    "total_records": stats[4] or 0
-                },
-                "temperature_distribution": temp_dist,
-                "salinity_distribution": sal_dist
+                "total_records": row[0] or 0,
+                "unique_floats": row[1] or 0,
+                "min_date": row[2].isoformat() if row[2] else None,
+                "max_date": row[3].isoformat() if row[3] else None,
+                "avg_temperature": float(row[4]) if row[4] else None,
+                "avg_salinity": float(row[5]) if row[5] else None
             })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route('/api/query')
+@app.route('/api/query', methods=['POST'])
 def handle_query():
-    """
-    Main query endpoint - processes natural language questions about ocean data.
-    Uses the brain module for intelligent parsing and SQL generation.
-    
-    Query Parameters:
-        - question: The natural language question (required)
-        - year: Optional year filter
-        - month: Optional month filter
-    
-    Returns:
-        JSON with query_type, sql_query, summary, and data
-    """
-    question = request.args.get('question', '').strip()
-    
-    if not question:
-        return jsonify({"error": "Missing 'question' parameter"}), 400
-    
+    """Handle natural language queries using AI."""
     if not get_intelligent_answer:
-        return jsonify({"error": "Query processing module not available"}), 500
+        return jsonify({"error": "AI module not available"}), 500
+    
+    data = request.get_json()
+    user_query = data.get('query', '')
+    
+    if not user_query:
+        return jsonify({"error": "No query provided"}), 400
     
     try:
-        # Add year/month context to the question if provided
-        year = request.args.get('year')
-        month = request.args.get('month')
-        
-        enhanced_question = question
-        if year and month:
-            month_names = ['January', 'February', 'March', 'April', 'May', 'June',
-                          'July', 'August', 'September', 'October', 'November', 'December']
-            month_name = month_names[int(month) - 1] if 1 <= int(month) <= 12 else month
-            enhanced_question = f"{question} in {month_name} {year}"
-        elif year:
-            enhanced_question = f"{question} in {year}"
-        
-        # Get intelligent answer from brain module
-        result = get_intelligent_answer(enhanced_question)
-        
-        return jsonify(result)
-    
+        response = get_intelligent_answer(user_query)
+        return jsonify(response)
     except Exception as e:
-        print(f"Query error: {e}")
-        return jsonify({
-            "query_type": "Error",
-            "summary": f"An error occurred while processing your query: {str(e)}",
-            "data": [],
-            "sql_query": "N/A"
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
-
-@app.route('/api/query/stream')
+@app.route('/api/query/stream', methods=['POST'])
 def handle_query_stream():
-    """
-    Streaming query endpoint - streams AI response in real-time.
-    Uses Server-Sent Events (SSE) for real-time updates.
-    """
-    question = request.args.get('question', '').strip()
+    """Handle natural language queries with streaming response."""
+    if not get_intelligent_answer:
+        return jsonify({"error": "AI module not available"}), 500
     
-    if not question:
-        return jsonify({"error": "Missing 'question' parameter"}), 400
+    data = request.get_json()
+    user_query = data.get('query', '')
+    
+    if not user_query:
+        return jsonify({"error": "No query provided"}), 400
     
     def generate():
         try:
-            # Send initial status
-            yield f"data: {json.dumps({'type': 'status', 'message': 'Processing your question...'})}\n\n"
+            response = get_intelligent_answer(user_query)
             
-            # Process the query
-            if get_intelligent_answer:
-                result = get_intelligent_answer(question)
-                
-                # Stream the summary word by word for effect
-                summary = result.get('summary', '')
-                words = summary.split()
-                
-                yield f"data: {json.dumps({'type': 'start', 'query_type': result.get('query_type', 'General')})}\n\n"
-                
-                # Stream words in chunks for smoother experience
-                chunk_size = 3
-                for i in range(0, len(words), chunk_size):
-                    chunk = ' '.join(words[i:i+chunk_size])
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk + ' '})}\n\n"
-                    time.sleep(0.05)  # Small delay for streaming effect
-                
-                # Send the complete data
-                yield f"data: {json.dumps({'type': 'data', 'data': result.get('data', []), 'sql_query': result.get('sql_query', '')})}\n\n"
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'message': 'Query processing not available'})}\n\n"
-                
+            # Send response in chunks
+            if 'answer' in response:
+                words = response['answer'].split(' ')
+                for i, word in enumerate(words):
+                    chunk = {'text': word + ' ', 'done': False}
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                    time.sleep(0.02)
+            
+            # Send final chunk with full data
+            response['done'] = True
+            yield f"data: {json.dumps(response)}\n\n"
+            
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
     
     return Response(
         stream_with_context(generate()),
@@ -444,283 +363,172 @@ def handle_query_stream():
         }
     )
 
-
-@app.route('/api/analytics/summary')
-def get_analytics_summary():
-    """Get comprehensive analytics summary for dashboard."""
-    db = get_db_engine()
-    if not db:
-        return jsonify({"error": "Database connection not available"}), 500
+@app.route('/api/data', methods=['GET'])
+@cached(ttl=30)
+def get_data():
+    """Get ARGO float data with filtering."""
+    engine = get_db_engine()
+    
+    if not engine:
+        return jsonify({"error": "Database not connected"}), 500
+    
+    # Parse query parameters
+    limit = min(int(request.args.get('limit', 1000)), 10000)
+    offset = int(request.args.get('offset', 0))
+    float_id = request.args.get('float_id')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    lat_min = request.args.get('lat_min')
+    lat_max = request.args.get('lat_max')
+    lon_min = request.args.get('lon_min')
+    lon_max = request.args.get('lon_max')
+    
+    # Build query
+    conditions = []
+    params = {}
+    
+    if float_id:
+        conditions.append("float_id = :float_id")
+        params['float_id'] = int(float_id)
+    
+    if start_date:
+        conditions.append("timestamp >= :start_date")
+        params['start_date'] = start_date
+    
+    if end_date:
+        conditions.append("timestamp <= :end_date")
+        params['end_date'] = end_date
+    
+    if lat_min:
+        conditions.append("latitude >= :lat_min")
+        params['lat_min'] = float(lat_min)
+    
+    if lat_max:
+        conditions.append("latitude <= :lat_max")
+        params['lat_max'] = float(lat_max)
+    
+    if lon_min:
+        conditions.append("longitude >= :lon_min")
+        params['lon_min'] = float(lon_min)
+    
+    if lon_max:
+        conditions.append("longitude <= :lon_max")
+        params['lon_max'] = float(lon_max)
+    
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+    
+    query = f"""
+        SELECT float_id, timestamp, latitude, longitude, temperature, salinity, pressure
+        FROM argo_data
+        WHERE {where_clause}
+        ORDER BY timestamp DESC
+        LIMIT :limit OFFSET :offset
+    """
+    params['limit'] = limit
+    params['offset'] = offset
     
     try:
-        with db.connect() as connection:
-            # Get comprehensive stats
-            stats_query = text("""
-                SELECT 
-                    COUNT(*) as total_records,
-                    COUNT(DISTINCT "float_id") as unique_floats,
-                    AVG("temperature") as avg_temp,
-                    MIN("temperature") as min_temp,
-                    MAX("temperature") as max_temp,
-                    AVG("salinity") as avg_salinity,
-                    MIN("salinity") as min_salinity,
-                    MAX("salinity") as max_salinity,
-                    MAX("pressure") as max_depth,
-                    MIN("timestamp") as earliest,
-                    MAX("timestamp") as latest
-                FROM argo_data;
-            """)
-            stats = dict(connection.execute(stats_query).mappings().first())
+        with engine.connect() as conn:
+            result = conn.execute(text(query), params)
+            rows = result.fetchall()
             
-            # Get monthly distribution
-            monthly_query = text("""
-                SELECT 
-                    EXTRACT(MONTH FROM "timestamp")::INT as month,
-                    COUNT(*) as count
-                FROM argo_data
-                GROUP BY EXTRACT(MONTH FROM "timestamp")
-                ORDER BY month;
-            """)
-            monthly = [dict(r) for r in connection.execute(monthly_query).mappings().all()]
-            
-            # Get regional distribution (simplified)
-            regional_query = text("""
-                SELECT 
-                    CASE 
-                        WHEN "latitude" BETWEEN 5 AND 22 AND "longitude" BETWEEN 80 AND 95 THEN 'Bay of Bengal'
-                        WHEN "latitude" BETWEEN 5 AND 25 AND "longitude" BETWEEN 50 AND 75 THEN 'Arabian Sea'
-                        WHEN "latitude" BETWEEN -40 AND 25 AND "longitude" BETWEEN 30 AND 120 THEN 'Indian Ocean'
-                        ELSE 'Other'
-                    END as region,
-                    COUNT(*) as count
-                FROM argo_data
-                GROUP BY region
-                ORDER BY count DESC;
-            """)
-            regional = [dict(r) for r in connection.execute(regional_query).mappings().all()]
-            
-            # Format timestamps
-            for key in ['earliest', 'latest']:
-                if stats.get(key) and hasattr(stats[key], 'isoformat'):
-                    stats[key] = stats[key].isoformat()
+            data = [
+                {
+                    "float_id": row[0],
+                    "timestamp": row[1].isoformat() if row[1] else None,
+                    "latitude": float(row[2]) if row[2] else None,
+                    "longitude": float(row[3]) if row[3] else None,
+                    "temperature": float(row[4]) if row[4] else None,
+                    "salinity": float(row[5]) if row[5] else None,
+                    "pressure": float(row[6]) if row[6] else None,
+                }
+                for row in rows
+            ]
             
             return jsonify({
-                "stats": stats,
-                "monthly_distribution": monthly,
-                "regional_distribution": regional
+                "data": data,
+                "count": len(data),
+                "limit": limit,
+                "offset": offset
             })
-            
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route('/api/locations')
-def get_locations():
-    location_data = []
-    for name, clause in LOCATIONS.items():
-        try:
-            lat_match = re.search(r'latitude" BETWEEN (-?\d+\.?\d*) AND (-?\d+\.?\d*)', clause)
-            lon_match = re.search(r'longitude" BETWEEN (-?\d+\.?\d*) AND (-?\d+\.?\d*)', clause)
-            if lat_match and lon_match:
-                center_lat = (float(lat_match.group(1)) + float(lat_match.group(2))) / 2
-                center_lon = (float(lon_match.group(1)) + float(lon_match.group(2))) / 2
-                location_data.append({"name": name.lower(), "lat": center_lat, "lon": center_lon})
-        except Exception:
-            continue
-    return jsonify(location_data)
-
-@app.route('/api/available_periods')
-def get_available_periods():
-    """Return distinct available years and months present in the dataset.
-    Output example: {"periods": {"2023": [1,2,3], "2024": [5,6]}}"""
-    db = get_db_engine()
-    if not db:
-        return jsonify({"error": "Database connection not available"}), 500
-    query = text("""
-        SELECT DISTINCT EXTRACT(YEAR FROM "timestamp")::INT AS yr,
-                        EXTRACT(MONTH FROM "timestamp")::INT AS mo
-        FROM argo_data
-        ORDER BY yr DESC, mo DESC;
-    """)
-    try:
-        with db.connect() as connection:
-            rows = connection.execute(query).mappings().all()
-        periods = {}
-        for r in rows:
-            periods.setdefault(str(r['yr']), []).append(int(r['mo']))
-        # ensure months sorted ascending for each year
-        for y in periods:
-            periods[y] = sorted(set(periods[y]))
-        return jsonify({"periods": periods})
-    except Exception as e:
-        return jsonify({"error": f"Failed to fetch periods: {e}"}), 500
-
-
-@app.route('/api/nearest_floats', methods=['GET'])
-def get_nearest_floats():
-    db = get_db_engine()
-    if not db: return jsonify({"error": "Database connection not available"}), 500
-    lat = request.args.get('lat', type=float)
-    lon = request.args.get('lon', type=float)
-    limit = request.args.get('limit', default=4, type=int)
-    year = request.args.get('year', type=int)
-    month = request.args.get('month', type=int)
-    if lat is None or lon is None:
-        return jsonify({"error": "Missing 'lat' or 'lon' query parameters"}), 400
-
-    # Build conditional month/year filter
-    time_filter = ""
-    params = {"lat": lat, "lon": lon, "limit": limit}
-    if year and month:
-        time_filter = "WHERE EXTRACT(YEAR FROM \"timestamp\") = :year AND EXTRACT(MONTH FROM \"timestamp\") = :month"
-        params.update({"year": year, "month": month})
-
-    query = text(f"""
-        WITH base AS (
-            SELECT * FROM argo_data {time_filter}
-        ), ranked_floats AS (
-            SELECT "float_id", "latitude", "longitude", "timestamp",
-                   (6371 * acos(cos(radians(:lat)) * cos(radians("latitude")) * cos(radians("longitude") - radians(:lon)) + sin(radians(:lat)) * sin(radians("latitude")))) AS distance_km,
-                   ROW_NUMBER() OVER(PARTITION BY "float_id" ORDER BY "timestamp" DESC) as rn
-            FROM base
-        )
-        SELECT "float_id", "latitude", "longitude", "timestamp", distance_km
-        FROM ranked_floats WHERE rn = 1 ORDER BY distance_km LIMIT :limit;
-    """)
-    try:
-        with db.connect() as connection:
-            result = connection.execute(query, params)
-            floats = [dict(row) for row in result.mappings()]
-            return jsonify(floats)
-    except Exception as e:
-        return jsonify({"error": f"Database query failed: {e}"}), 500
-
-@app.route('/api/float_profile/<int:float_id>')
-def get_float_profile(float_id):
-    db = get_db_engine()
-    if not db: return jsonify({"error": "Database connection not available"}), 500
-    year = request.args.get('year', type=int)
-    month = request.args.get('month', type=int)
-    time_filter = ""
-    params = {"fid": float_id}
-    if year and month:
-        time_filter = "AND EXTRACT(YEAR FROM \"timestamp\") = :year AND EXTRACT(MONTH FROM \"timestamp\") = :month"
-        params.update({"year": year, "month": month})
-    query = text(f"""
-        SELECT "timestamp", "pressure", "temperature", "salinity", "chlorophyll", "dissolved_oxygen"
-        FROM argo_data WHERE "float_id" = :fid {time_filter} AND "timestamp" = (
-            SELECT MAX("timestamp") FROM argo_data WHERE "float_id" = :fid {time_filter}
-        ) ORDER BY "pressure" ASC;
-    """)
-    try:
-        with db.connect() as connection:
-            result = connection.execute(query, params)
-            profile_data = [dict(row) for row in result.mappings()]
-            if not profile_data: return jsonify({"error": "No data found for this float in selected period"}), 404
-            return jsonify(profile_data)
-    except Exception as e:
-        return jsonify({"error": f"Database query failed: {e}"}), 500
-
-@app.route('/api/float_trajectory/<int:float_id>')
-def get_float_trajectory(float_id):
-    """Return trajectory path plus start/end timestamps for the selected (optional) month/year.
-
-    Response shape on success:
-    {
-        "path": [[lat, lon], ...],
-        "start_timestamp": "YYYY-MM-DDTHH:MM:SSZ",
-        "end_timestamp": "YYYY-MM-DDTHH:MM:SSZ",
-        "num_points": N
-    }
-    """
-    db = get_db_engine()
-    if not db: return jsonify({"error": "Database connection not available"}), 500
-    year = request.args.get('year', type=int)
-    month = request.args.get('month', type=int)
-    time_filter = ""
-    params = {"fid": float_id}
-    if year and month:
-        time_filter = "AND EXTRACT(YEAR FROM \"timestamp\") = :year AND EXTRACT(MONTH FROM \"timestamp\") = :month"
-        params.update({"year": year, "month": month})
-    query = text(f"""
-        SELECT "latitude", "longitude", "timestamp" FROM argo_data
-        WHERE "float_id" = :fid {time_filter} ORDER BY "timestamp" ASC;
-    """)
-    try:
-        with db.connect() as connection:
-            rows = connection.execute(query, params).mappings().all()
-            if not rows:
-                return jsonify({"error": "No trajectory data found for this period"}), 404
-            path = [[r['latitude'], r['longitude']] for r in rows]
-            start_ts = rows[0]['timestamp']
-            end_ts = rows[-1]['timestamp']
-            return jsonify({
-                "path": path,
-                "start_timestamp": start_ts.isoformat() if hasattr(start_ts, 'isoformat') else str(start_ts),
-                "end_timestamp": end_ts.isoformat() if hasattr(end_ts, 'isoformat') else str(end_ts),
-                "num_points": len(rows)
-            })
-    except Exception as e:
-        return jsonify({"error": f"Database query failed: {e}"}), 500
-
-
-@app.route('/api/statistics')
-def get_statistics():
-    """Get overall statistics about the dataset."""
-    db = get_db_engine()
-    if not db:
-        return jsonify({"error": "Database connection not available"}), 500
+@app.route('/api/floats')
+@cached(ttl=300)
+def get_floats():
+    """Get list of unique float IDs."""
+    engine = get_db_engine()
     
-    query = text("""
-        SELECT 
-            COUNT(*) as total_records,
-            COUNT(DISTINCT "float_id") as unique_floats,
-            MIN("timestamp") as earliest_record,
-            MAX("timestamp") as latest_record,
-            AVG("temperature") as avg_temperature,
-            AVG("salinity") as avg_salinity
-        FROM argo_data;
-    """)
+    if not engine:
+        return jsonify({"error": "Database not connected"}), 500
     
     try:
-        with db.connect() as connection:
-            result = connection.execute(query).mappings().first()
-            stats = dict(result)
-            # Format timestamps
-            for key in ['earliest_record', 'latest_record']:
-                if stats[key] and hasattr(stats[key], 'isoformat'):
-                    stats[key] = stats[key].isoformat()
-            return jsonify(stats)
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT DISTINCT float_id 
+                FROM argo_data 
+                ORDER BY float_id
+                LIMIT 1000
+            """))
+            floats = [row[0] for row in result.fetchall()]
+            
+            return jsonify({"floats": floats, "count": len(floats)})
     except Exception as e:
-        return jsonify({"error": f"Failed to fetch statistics: {e}"}), 500
+        return jsonify({"error": str(e)}), 500
 
+@app.route('/api/map/points')
+@cached(ttl=60)
+def get_map_points():
+    """Get float positions for map visualization."""
+    engine = get_db_engine()
+    
+    if not engine:
+        return jsonify({"error": "Database not connected"}), 500
+    
+    limit = min(int(request.args.get('limit', 5000)), 10000)
+    
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT DISTINCT ON (float_id) 
+                    float_id, latitude, longitude, timestamp, temperature
+                FROM argo_data
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                ORDER BY float_id, timestamp DESC
+                LIMIT :limit
+            """), {"limit": limit})
+            
+            points = [
+                {
+                    "float_id": row[0],
+                    "lat": float(row[1]),
+                    "lng": float(row[2]),
+                    "timestamp": row[3].isoformat() if row[3] else None,
+                    "temperature": float(row[4]) if row[4] else None
+                }
+                for row in result.fetchall()
+            ]
+            
+            return jsonify({"points": points, "count": len(points)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =============================================
-# SERVER STARTUP
+# RUN SERVER
 # =============================================
 
-def start_api_server(host: str = "127.0.0.1", port: int = 5000, debug: bool = False):
-    """
-    Start the Flask API server.
+if __name__ == "__main__":
+    print("\n" + "="*50)
+    print("  FloatChart - AI-Powered Ocean Data Chat")
+    print("="*50)
+    print(f"\n🌐 Opening at: http://localhost:5000")
+    print("\n📋 Pages:")
+    print("   /           - Chat Interface")
+    print("   /map        - Interactive Map")
+    print("   /dashboard  - Analytics Dashboard")
+    print("\n💡 For data management, run:")
+    print("   cd DATA_GENERATOR && python app.py")
+    print("\nPress Ctrl+C to stop\n")
     
-    Exposed as a function so it can be launched programmatically.
-    The debug mode includes auto-reload which is useful for development.
-    """
-    print(f"\n{'='*60}")
-    print(f"  FloatChat - Ocean Intelligence Web Application")
-    print(f"{'='*60}")
-    print(f"  Server starting at: http://{host}:{port}")
-    print(f"  Open this URL in your browser to use the application")
-    print(f"{'='*60}\n")
-    
-    # Disable the auto reloader explicitly to avoid double-start issues
-    app.run(host=host, port=port, debug=debug, use_reloader=False)
-
-
-# --- RUN THE SERVER ---
-if __name__ == '__main__':
-    # Use PORT from environment (for deployment) or default to 5000
-    port = int(os.environ.get("PORT", 5000))
-    debug = os.environ.get("FLASK_DEBUG", "true").lower() == "true"
-    start_api_server(host="0.0.0.0", port=port, debug=debug)
-
+    app.run(host='0.0.0.0', port=5000, debug=True)

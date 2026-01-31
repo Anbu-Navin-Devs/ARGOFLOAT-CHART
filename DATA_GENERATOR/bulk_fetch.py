@@ -23,10 +23,22 @@ import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from dotenv import load_dotenv
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from DATA_GENERATOR.env_utils import load_environment
+# Load environment from .env file (check multiple locations)
+def load_environment():
+    """Load .env from project root or current directory."""
+    env_paths = [
+        Path(".env"),
+        Path("../.env"),
+        Path("../../.env"),
+    ]
+    for p in env_paths:
+        if p.exists():
+            load_dotenv(p, override=False)
+            return
+    load_dotenv()
 
 # ERDDAP Servers - Ifremer is primary (most reliable), NOAA as backup
 ERDDAP_SERVERS = {
@@ -37,8 +49,14 @@ DATASET_ID = "ArgoFloats"
 # Ifremer uses different column names
 IFREMER_COLUMNS = "platform_number,time,latitude,longitude,temp,psal,pres"
 
-# All ocean regions for comprehensive data
-REGIONS = {
+# India-focused regions (fits in 10GB free tier, ~5GB total for 2002-2026)
+# These cover all waters relevant to India including trajectories
+INDIA_REGIONS = {
+    "india_waters": (-10, 25, 50, 100),  # Main region covering Bay of Bengal + Arabian Sea + Indian Ocean near India
+}
+
+# All ocean regions for comprehensive data (use with --all-global flag)
+ALL_REGIONS = {
     "indian_ocean": (-40, 25, 30, 120),
     "bay_of_bengal": (5, 22, 80, 95),
     "arabian_sea": (5, 25, 50, 75),
@@ -52,6 +70,9 @@ REGIONS = {
     "arctic": (60, 85, -180, 180),
     "southern_ocean": (-80, -60, -180, 180),
 }
+
+# Default to India regions
+REGIONS = INDIA_REGIONS
 
 
 def get_db_engine(db_url: str = None):
@@ -97,9 +118,9 @@ def clean_and_fill_missing(df: pd.DataFrame) -> pd.DataFrame:
     
     # Fill temperature - by float first, then global mean
     if "temperature" in df.columns:
-        # Forward/backward fill within each float
+        # Forward/backward fill within each float (fixed deprecation)
         df["temperature"] = df.groupby("float_id")["temperature"].transform(
-            lambda x: x.fillna(method='ffill').fillna(method='bfill')
+            lambda x: x.ffill().bfill()
         )
         # Fill remaining with regional mean
         temp_mean = df["temperature"].mean()
@@ -111,7 +132,7 @@ def clean_and_fill_missing(df: pd.DataFrame) -> pd.DataFrame:
     # Fill salinity - same strategy
     if "salinity" in df.columns:
         df["salinity"] = df.groupby("float_id")["salinity"].transform(
-            lambda x: x.fillna(method='ffill').fillna(method='bfill')
+            lambda x: x.ffill().bfill()
         )
         sal_mean = df["salinity"].mean()
         if pd.notna(sal_mean):
@@ -122,16 +143,17 @@ def clean_and_fill_missing(df: pd.DataFrame) -> pd.DataFrame:
     # Fill pressure - 0 for surface readings
     if "pressure" in df.columns:
         df["pressure"] = df.groupby("float_id")["pressure"].transform(
-            lambda x: x.fillna(method='ffill').fillna(method='bfill')
+            lambda x: x.ffill().bfill()
         )
         df["pressure"] = df["pressure"].fillna(0)
     
-    # Remove any remaining NaN in critical columns
-    df = df.dropna(subset=["temperature", "salinity"])
+    # Keep records even if missing temp/salinity, as long as location is valid
+    # Don't drop based on temp/salinity - they can be NULL in database
     
-    # Remove extreme outliers
-    df = df[(df["temperature"] > -5) & (df["temperature"] < 40)]
-    df = df[(df["salinity"] > 0) & (df["salinity"] < 45)]
+    # Remove extreme outliers only for records that HAVE values (only filter records that have values, keep NaN)
+    temp_mask = (df["temperature"].isna()) | ((df["temperature"] > -5) & (df["temperature"] < 40))
+    sal_mask = (df["salinity"].isna()) | ((df["salinity"] > 0) & (df["salinity"] < 45))
+    df = df[temp_mask & sal_mask]
     
     cleaned_count = len(df)
     print(f"  Cleaned: {original_count} → {cleaned_count} records ({cleaned_count/original_count*100:.1f}% retained)")
@@ -220,12 +242,136 @@ def fetch_chunk(lat_min: float, lat_max: float, lon_min: float, lon_max: float,
     return None
 
 
+def fetch_and_upload_streaming(region_name: str, bounds: tuple, engine, 
+                               start_year: int = 2018, end_year: Optional[int] = None, 
+                               chunk_days: int = 90, base_url: str = ERDDAP_SERVERS["noaa"],
+                               sleep_seconds: float = 0.5) -> int:
+    """
+    STREAMING approach: Fetch each chunk and upload immediately to database.
+    This prevents memory issues with large datasets (50M+ records).
+    Returns total records uploaded.
+    """
+    lat_min, lat_max, lon_min, lon_max = bounds
+    
+    print(f"\n🌊 Fetching & Uploading: {region_name.replace('_', ' ').title()}")
+    print(f"   Bounds: ({lat_min}, {lat_max}) x ({lon_min}, {lon_max})")
+    print(f"   Mode: STREAMING (upload each chunk immediately)")
+    
+    total_uploaded = 0
+    chunks_processed = 0
+    
+    # Calculate total chunks for progress
+    current_date = datetime(start_year, 1, 1)
+    if end_year is None:
+        end_date = datetime.now()
+    else:
+        end_date = datetime(end_year, 12, 31)
+    
+    total_days = (end_date - current_date).days
+    estimated_chunks = total_days // chunk_days + 1
+    
+    session = create_session()
+    
+    while current_date < end_date:
+        chunk_end = min(current_date + timedelta(days=chunk_days), end_date)
+        chunks_processed += 1
+        
+        print(f"   [{chunks_processed}/{estimated_chunks}] {current_date.strftime('%Y-%m')} to {chunk_end.strftime('%Y-%m')}...", end=" ", flush=True)
+        
+        df = fetch_chunk(lat_min, lat_max, lon_min, lon_max, current_date, chunk_end, base_url, session=session)
+        
+        if df is not None and not df.empty:
+            # Remove duplicates within this chunk (keep all pressure levels!)
+            df = df.drop_duplicates(subset=["float_id", "timestamp", "pressure"])
+            print(f"✓ {len(df):,} fetched", end=" ", flush=True)
+            
+            # Upload this chunk immediately
+            uploaded = upload_chunk_to_database(df, engine)
+            total_uploaded += uploaded
+            print(f"→ {uploaded:,} uploaded (total: {total_uploaded:,})")
+            
+            # Free memory immediately
+            del df
+        else:
+            print("- no data")
+        
+        current_date = chunk_end + timedelta(days=1)
+        time.sleep(sleep_seconds)
+    
+    return total_uploaded
+
+
+def upload_chunk_to_database(df: pd.DataFrame, engine, chunk_size: int = 5000) -> int:
+    """Upload a single chunk to database (memory efficient)."""
+    if df.empty:
+        return 0
+    
+    # Light cleaning - don't drop records with missing temp/salinity
+    df = df.dropna(subset=["latitude", "longitude", "timestamp", "float_id"])
+    
+    # Validate float_id is numeric
+    df["float_id"] = pd.to_numeric(df["float_id"], errors='coerce')
+    df = df.dropna(subset=["float_id"])
+    
+    if df.empty:
+        return 0
+    
+    import psycopg2
+    from psycopg2.extras import execute_values
+    
+    load_environment()
+    db_url = os.getenv("DATABASE_URL")
+    conn = psycopg2.connect(db_url)
+    cursor = conn.cursor()
+    
+    total_uploaded = 0
+    
+    for i in range(0, len(df), chunk_size):
+        chunk = df.iloc[i:i + chunk_size]
+        try:
+            values = []
+            for _, row in chunk.iterrows():
+                try:
+                    val = (
+                        int(row["float_id"]),
+                        row["timestamp"],
+                        float(row["latitude"]) if pd.notna(row["latitude"]) else None,
+                        float(row["longitude"]) if pd.notna(row["longitude"]) else None,
+                        float(row["temperature"]) if pd.notna(row.get("temperature")) else None,
+                        float(row["salinity"]) if pd.notna(row.get("salinity")) else None,
+                        float(row["pressure"]) if pd.notna(row.get("pressure")) else 0.0,
+                    )
+                    if val[2] is not None and val[3] is not None:
+                        values.append(val)
+                except:
+                    pass
+            
+            if values:
+                insert_sql = """
+                    INSERT INTO argo_data (float_id, timestamp, latitude, longitude, temperature, salinity, pressure)
+                    VALUES %s
+                    ON CONFLICT (float_id, timestamp, pressure) DO NOTHING
+                """
+                execute_values(cursor, insert_sql, values, page_size=1000)
+                conn.commit()
+                total_uploaded += len(values)
+        except Exception as e:
+            conn.rollback()
+            # Silently continue on errors
+    
+    cursor.close()
+    conn.close()
+    
+    return total_uploaded
+
+
 def fetch_region_data(region_name: str, bounds: tuple, start_year: int = 2018,
                       end_year: Optional[int] = None, chunk_days: int = 90,
                       base_url: str = ERDDAP_SERVERS["noaa"],
                       sleep_seconds: float = 0.5) -> pd.DataFrame:
     """
-    Fetch all data for a region from start_year to now, in monthly chunks.
+    LEGACY: Fetch all data for a region (accumulates in memory).
+    For large datasets, use fetch_and_upload_streaming() instead.
     """
     lat_min, lat_max, lon_min, lon_max = bounds
     
@@ -234,7 +380,6 @@ def fetch_region_data(region_name: str, bounds: tuple, start_year: int = 2018,
     
     all_data = []
     
-    # Fetch data in chunks to avoid timeouts
     current_date = datetime(start_year, 1, 1)
     if end_year is None:
         end_date = datetime.now()
@@ -256,11 +401,11 @@ def fetch_region_data(region_name: str, bounds: tuple, start_year: int = 2018,
             print("- no data")
         
         current_date = chunk_end + timedelta(days=1)
-        time.sleep(sleep_seconds)  # Be nice to the server
+        time.sleep(sleep_seconds)
     
     if all_data:
         combined = pd.concat(all_data, ignore_index=True)
-        combined = combined.drop_duplicates(subset=["float_id", "timestamp", "latitude", "longitude"])
+        combined = combined.drop_duplicates(subset=["float_id", "timestamp", "pressure"])
         return combined
     
     return pd.DataFrame()
@@ -278,7 +423,10 @@ def upload_to_database(df: pd.DataFrame, engine, chunk_size: int = 5000) -> int:
     if df.empty:
         return 0
     
-    print(f"  Uploading {len(df)} records to database...")
+    # Remove duplicates within the dataframe itself first
+    df = df.drop_duplicates(subset=["float_id", "timestamp", "pressure"], keep="first")
+    
+    print(f"  📤 Uploading {len(df):,} records to database...")
     
     # Use psycopg2 directly for CockroachDB compatibility
     import psycopg2
@@ -290,25 +438,50 @@ def upload_to_database(df: pd.DataFrame, engine, chunk_size: int = 5000) -> int:
     cursor = conn.cursor()
     
     total_uploaded = 0
+    total_skipped = 0
     columns = ["float_id", "timestamp", "latitude", "longitude", "temperature", "salinity", "pressure"]
     
     for i in range(0, len(df), chunk_size):
         chunk = df.iloc[i:i + chunk_size]
         try:
-            # Prepare data tuples
-            values = [tuple(row[col] for col in columns) for _, row in chunk.iterrows()]
+            # Prepare data tuples - ensure proper types
+            values = []
+            for _, row in chunk.iterrows():
+                try:
+                    val = (
+                        int(row["float_id"]) if pd.notna(row["float_id"]) else None,
+                        row["timestamp"],
+                        float(row["latitude"]) if pd.notna(row["latitude"]) else None,
+                        float(row["longitude"]) if pd.notna(row["longitude"]) else None,
+                        float(row["temperature"]) if pd.notna(row["temperature"]) else None,
+                        float(row["salinity"]) if pd.notna(row["salinity"]) else None,
+                        float(row["pressure"]) if pd.notna(row["pressure"]) else 0.0,
+                    )
+                    if val[0] is not None and val[2] is not None and val[3] is not None:
+                        values.append(val)
+                except:
+                    pass
             
-            # Use UPSERT for CockroachDB (simpler than ON CONFLICT)
-            insert_sql = """
-                UPSERT INTO argo_data (float_id, timestamp, latitude, longitude, temperature, salinity, pressure)
-                VALUES %s
-            """
-            execute_values(cursor, insert_sql, values, page_size=1000)
-            conn.commit()
-            total_uploaded += len(chunk)
-            print(f"    Uploaded {total_uploaded}/{len(df)} records")
+            if values:
+                # Use INSERT with ON CONFLICT DO NOTHING to skip duplicates
+                insert_sql = """
+                    INSERT INTO argo_data (float_id, timestamp, latitude, longitude, temperature, salinity, pressure)
+                    VALUES %s
+                    ON CONFLICT (float_id, timestamp, pressure) DO NOTHING
+                """
+                execute_values(cursor, insert_sql, values, page_size=1000)
+                conn.commit()
+                
+                # Count actual insertions
+                cursor.execute("SELECT COUNT(*) FROM argo_data")
+                current_count = cursor.fetchone()[0]
+            
+            total_uploaded += len(values)
+            pct = ((i + len(chunk)) / len(df)) * 100
+            bar_filled = int(pct / 5)
+            print(f"    ▓{'█' * bar_filled}{'░' * (20-bar_filled)}▓ {i + len(chunk):,}/{len(df):,} ({pct:.1f}%)")
         except Exception as e:
-            print(f"    Error uploading chunk: {e}")
+            print(f"    ⚠️ Chunk error (continuing): {str(e)[:50]}")
             conn.rollback()
     
     cursor.close()
@@ -385,6 +558,7 @@ def init_database(engine):
     print("Creating database table...")
     
     # CockroachDB compatible - use INT8 instead of SERIAL
+    # UNIQUE on (float_id, timestamp, pressure) to handle depth profiles
     statements = [
         """CREATE TABLE IF NOT EXISTS argo_data (
             id INT8 DEFAULT unique_rowid() PRIMARY KEY,
@@ -395,7 +569,7 @@ def init_database(engine):
             temperature DOUBLE PRECISION,
             salinity DOUBLE PRECISION,
             pressure DOUBLE PRECISION,
-            UNIQUE(float_id, timestamp, latitude, longitude)
+            UNIQUE(float_id, timestamp, pressure)
         )""",
         "CREATE INDEX IF NOT EXISTS idx_argo_timestamp ON argo_data(timestamp)",
         "CREATE INDEX IF NOT EXISTS idx_argo_float ON argo_data(float_id)",
@@ -460,22 +634,30 @@ def get_stats(engine):
 
 
 def main():
+    global REGIONS
     parser = argparse.ArgumentParser(description="Bulk ARGO data fetcher for FloatChart")
     
     parser.add_argument("--setup-neon", action="store_true", help="Show Neon setup guide (0.5GB free)")
     parser.add_argument("--setup-cockroach", action="store_true", help="Show CockroachDB setup guide (10GB free) - RECOMMENDED")
     parser.add_argument("--init-db", action="store_true", help="Initialize database schema")
-    parser.add_argument("--fetch-all", action="store_true", help="Fetch all data from 2020")
+    parser.add_argument("--fetch-all", action="store_true", help="Fetch India waters data (default, fits 10GB)")
+    parser.add_argument("--fetch-global", action="store_true", help="Fetch ALL global regions (needs 200GB+)")
     parser.add_argument("--fetch-region", type=str, help="Fetch specific region")
-    parser.add_argument("--start-year", type=int, default=2020, help="Start year (default: 2020)")
+    parser.add_argument("--start-year", type=int, default=2002, help="Start year (default: 2002, earliest ARGO data)")
     parser.add_argument("--end-year", type=int, default=None, help="End year (default: current year)")
     parser.add_argument("--chunk-days", type=int, default=90, help="Days per request chunk (default: 90)")
-    parser.add_argument("--server", type=str, default="noaa", choices=["noaa", "ifremer"], help="ERDDAP server")
-    parser.add_argument("--parallel", type=int, default=3, help="Parallel regions to fetch (default: 3)")
+    parser.add_argument("--server", type=str, default="ifremer", choices=["noaa", "ifremer"], help="ERDDAP server (default: ifremer)")
     parser.add_argument("--stats", action="store_true", help="Show database statistics")
     parser.add_argument("--test-connection", action="store_true", help="Test database connection")
     
     args = parser.parse_args()
+    
+    # Set regions based on flag
+    if args.fetch_global:
+        REGIONS = ALL_REGIONS
+        print("⚠️  WARNING: Fetching ALL global regions requires 200GB+ storage!")
+    else:
+        REGIONS = INDIA_REGIONS
     
     if args.setup_neon:
         setup_neon_database()
@@ -517,44 +699,47 @@ def main():
     
     if args.fetch_all:
         print(f"\n🚀 Starting bulk fetch from {args.start_year}...")
-        print(f"   This will take a while. Fetching from {len(REGIONS)} regions.\n")
+        print(f"   Fetching from {len(REGIONS)} regions sequentially (safer).\n")
         
         # Initialize database first
         init_database(engine)
         
         total_records = 0
+        completed_regions = 0
         
         base_url = ERDDAP_SERVERS[args.server]
-        with ThreadPoolExecutor(max_workers=max(1, args.parallel)) as executor:
-            futures = {
-                executor.submit(
-                    fetch_region_data,
+        
+        for region_name, bounds in REGIONS.items():
+            completed_regions += 1
+            print(f"\n{'='*60}")
+            print(f"📍 Region {completed_regions}/{len(REGIONS)}: {region_name.replace('_', ' ').title()}")
+            print(f"{'='*60}")
+            
+            try:
+                # Use STREAMING approach to prevent memory issues with 50M+ records
+                uploaded = fetch_and_upload_streaming(
                     region_name,
                     bounds,
+                    engine,
                     args.start_year,
                     args.end_year,
                     args.chunk_days,
                     base_url,
-                    0.5 if args.server == "noaa" else 0.8,
-                ): region_name
-                for region_name, bounds in REGIONS.items()
-            }
-            for future in as_completed(futures):
-                region_name = futures[future]
-                try:
-                    df = future.result()
-                except Exception as e:
-                    print(f"   ❌ {region_name}: fetch failed ({e})")
-                    continue
+                    0.8,  # Sleep between requests
+                )
+                
+                total_records += uploaded
+                print(f"   ✅ {region_name}: {uploaded:,} records uploaded")
+                    
+            except Exception as e:
+                print(f"   ❌ {region_name}: fetch failed ({e})")
+                import traceback
+                traceback.print_exc()
+                continue
 
-                if not df.empty:
-                    uploaded = upload_to_database(df, engine)
-                    total_records += uploaded
-                    print(f"   ✅ {region_name}: {uploaded} records uploaded")
-
-                # Show progress
-                stats = get_stats(engine)
-                print(f"   📊 Total in database: {stats.get('total_records', 0):,} records")
+            # Show overall progress
+            stats = get_stats(engine)
+            print(f"\n📊 Progress: {completed_regions}/{len(REGIONS)} regions | Total: {stats.get('total_records', 0):,} records")
         
         print(f"\n🎉 Complete! Total records uploaded: {total_records:,}")
         
