@@ -115,16 +115,48 @@ FloatChart/
 
 ## 🔧 Configuration
 
-After running `local_setup.py`, edit `.env` at project root:
+### 🏠 Local Development (PostgreSQL - UNLIMITED Storage!)
+
+```bash
+# 1. Install PostgreSQL: https://www.postgresql.org/download/
+# 2. Create database:
+psql -U postgres
+CREATE DATABASE floatchart;
+\q
+
+# 3. Run setup
+python local_setup.py
+
+# 4. Edit .env at project root:
+```
 
 ```env
-# Database (CockroachDB - Free 10GB at cockroachlabs.cloud)
-DATABASE_URL=postgresql://user:pass@host:26257/database?sslmode=verify-full
-
-# AI Providers (Both FREE - recommended to set both!)
-DEEPSEEK_API_KEY=your_deepseek_key   # Complex queries
-GROQ_API_KEY=your_groq_key           # Simple/fast queries
+DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/floatchart
+DEEPSEEK_API_KEY=your_deepseek_key
+GROQ_API_KEY=your_groq_key
 ```
+
+**✅ Benefits of Local PostgreSQL:**
+- 📦 **Unlimited storage** - Download ALL ARGO data (46M+ records)
+- ⚡ **Faster queries** - Local = no network latency
+- 💰 **100% Free** - No cloud limits
+
+### ☁️ Cloud Deployment (CockroachDB - 10GB Free)
+
+For Render/cloud deployment, use `ARGO_CHATBOT/.env`:
+
+```env
+DATABASE_URL=postgresql://user:pass@host:26257/db?sslmode=verify-full
+DEEPSEEK_API_KEY=your_deepseek_key
+GROQ_API_KEY=your_groq_key
+```
+
+**Note:** CockroachDB has 10GB free tier - suitable for demo/production with limited data.
+
+| Environment | Database | Storage | Best For |
+|-------------|----------|---------|----------|
+| **Local** | PostgreSQL | ♾️ Unlimited | Full data exploration |
+| **Cloud** | CockroachDB | 10GB | Demo, production |
 
 ## 📥 Getting Data
 

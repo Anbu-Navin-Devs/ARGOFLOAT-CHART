@@ -89,11 +89,15 @@ def create_env_file(project_root):
         shutil.copy(env_example, root_env)
         print_success("Created .env from .env.example (for local development)")
     else:
-        # Fallback: create minimal .env
+        # Fallback: create minimal .env with PostgreSQL for local
         env_content = """# FloatChart Configuration - Local Setup
-# Copy this to cloud deployment as ARGO_CHATBOT/.env
+# Using PostgreSQL for LOCAL (unlimited storage!)
+# For cloud deployment, use CockroachDB
 
-DATABASE_URL=your_cockroachdb_url_here
+# 🏠 LOCAL DATABASE: PostgreSQL (UNLIMITED storage!)
+# Install PostgreSQL: https://www.postgresql.org/download/
+# Create database: CREATE DATABASE floatchart;
+DATABASE_URL=postgresql://postgres:password@localhost:5432/floatchart
 
 # ============================================
 # 🧠 AI PROVIDERS - Smart Routing (Both FREE!)
@@ -109,10 +113,11 @@ GROQ_API_KEY=your_groq_api_key_here
 # GOOGLE_API_KEY=your_google_key
 """
         root_env.write_text(env_content)
-        print_success("Created .env file at project root")
+        print_success("Created .env file at project root (PostgreSQL for local)")
     
     print_warning("Please edit .env at project root with your credentials")
-    print_warning("Note: ARGO_CHATBOT/.env is for cloud deployment (Render, etc.)")
+    print_warning("LOCAL uses PostgreSQL (unlimited storage)")
+    print_warning("CLOUD uses CockroachDB (ARGO_CHATBOT/.env)")
     return True
 
 def install_dependencies(project_root):
