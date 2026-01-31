@@ -285,39 +285,35 @@ def get_status():
     
     try:
         with engine.connect() as conn:
-            # Get basic stats
-            result = conn.execute(text("SELECT COUNT(*) FROM argo_data"))
-            total_records = result.scalar() or 0
+            # Quick connection test first
+            conn.execute(text("SELECT 1"))
             
-            # Get date range and unique floats
-            stats = conn.execute(text("""
-                SELECT 
-                    MIN(timestamp)::date as min_date,
-                    MAX(timestamp)::date as max_date,
-                    COUNT(DISTINCT float_id) as unique_floats
-                FROM argo_data
-            """)).fetchone()
-            
-            data_range = None
-            unique_floats = 0
-            if stats:
-                min_date = stats[0]
-                max_date = stats[1]
-                unique_floats = stats[2] or 0
-                if min_date and max_date:
-                    data_range = {
-                        "start": min_date.strftime("%b %Y") if hasattr(min_date, 'strftime') else str(min_date)[:7],
-                        "end": max_date.strftime("%b %Y") if hasattr(max_date, 'strftime') else str(max_date)[:7]
-                    }
+            # Use estimate for large tables (much faster)
+            try:
+                # Try to get approximate count (CockroachDB/PostgreSQL)
+                result = conn.execute(text("""
+                    SELECT reltuples::bigint as estimate 
+                    FROM pg_class 
+                    WHERE relname = 'argo_data'
+                """))
+                row = result.fetchone()
+                total_records = int(row[0]) if row and row[0] > 0 else 0
+                
+                # If estimate is 0, do a quick limited count
+                if total_records == 0:
+                    result = conn.execute(text("SELECT COUNT(*) FROM argo_data LIMIT 1"))
+                    total_records = result.scalar() or 0
+            except:
+                # Fallback to actual count with timeout
+                result = conn.execute(text("SELECT COUNT(*) FROM argo_data"))
+                total_records = result.scalar() or 0
             
             return jsonify({
                 "status": "online",
                 "database": "connected",
                 "database_connected": True,
                 "total_records": total_records,
-                "records": total_records,
-                "unique_floats": unique_floats,
-                "data_range": data_range
+                "records": total_records
             })
     except Exception as e:
         print(f"Status check error: {e}")
