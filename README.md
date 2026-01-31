@@ -242,7 +242,7 @@ These floats drift at depth and surface every **10 days** to transmit data via s
 | | 🌐 **Live Demo** | 💻 **Local Setup** |
 |:-|:----------------:|:------------------:|
 | **URL** | [argofloat-chart-hank.onrender.com](https://argofloat-chart-hank.onrender.com) | http://localhost:5000 |
-| **Data Records** | ~5 Million | **46+ Million** (full dataset) |
+| **Data Records** | ~45 Million | **unlimited** (full dataset) |
 | **Query Speed** | Network dependent | ⚡ **Instant** (local DB) |
 | **Storage** | Limited (free tier) | **Unlimited** |
 | **Data Manager** | ❌ Not available | ✅ **Full access** |
