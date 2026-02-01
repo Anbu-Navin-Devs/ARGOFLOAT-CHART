@@ -730,20 +730,6 @@ def get_map_points():
 # RUN SERVER
 # =============================================
 
-# Health check endpoint for Render to keep app warm
-@app.route('/health')
-def health_check():
-    """Health check endpoint - also keeps connection warm."""
-    engine = get_db_engine()
-    if engine:
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            return jsonify({"status": "healthy", "database": "connected"}), 200
-        except:
-            pass
-    return jsonify({"status": "healthy", "database": "disconnected"}), 200
-
 if __name__ == "__main__":
     print("\n" + "="*50)
     print("  FloatChart - AI-Powered Ocean Data Chat")
