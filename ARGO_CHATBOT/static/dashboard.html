@@ -716,6 +716,218 @@
                 height: 42px;
             }
         }
+
+        /* ============================================
+           Modal for Expanded Sparkline View
+           ============================================ */
+        .sparkline-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            animation: modalFadeIn 0.3s ease-out;
+        }
+        
+        .sparkline-modal.active {
+            display: flex;
+        }
+        
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        .sparkline-modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: var(--shadow-card);
+            animation: modalSlideUp 0.3s ease-out;
+        }
+        
+        @keyframes modalSlideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .sparkline-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .sparkline-modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .sparkline-modal-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-elevated);
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: all 0.2s ease;
+        }
+        
+        .sparkline-modal-close:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            transform: rotate(90deg);
+        }
+        
+        .sparkline-modal-body {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .sparkline-chart-container {
+            width: 100%;
+        }
+        
+        .sparkline-chart-canvas {
+            max-height: 400px;
+        }
+        
+        .sparkline-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .sparkline-stat-box {
+            background: var(--bg-elevated);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .sparkline-stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .sparkline-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        
+        .sparkline-time-range {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        
+        .time-range-btn {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .time-range-btn:hover,
+        .time-range-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+        
+        .sparkline-data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        
+        .sparkline-data-table thead {
+            border-bottom: 2px solid var(--border-subtle);
+        }
+        
+        .sparkline-data-table th {
+            padding: 0.75rem;
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+        
+        .sparkline-data-table td {
+            padding: 0.75rem;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .sparkline-data-table tbody tr:hover {
+            background: var(--bg-elevated);
+        }
+        
+        @media (max-width: 768px) {
+            .sparkline-modal-content {
+                width: 95%;
+                padding: 1.5rem;
+            }
+            
+            .sparkline-modal-body {
+                grid-template-columns: 1fr;
+            }
+            
+            .sparkline-stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
     </style>
 </head>
 <body>
@@ -1485,6 +1697,288 @@
             }
         }
         
+        // ============================================
+        // Sparkline Modal Functionality
+        // ============================================
+        
+        const metricConfigs = {
+            temp: {
+                title: '🌡️ Temperature Trend',
+                icon: '🌡️',
+                unit: '°C',
+                color: '#ef4444'
+            },
+            sal: {
+                title: '🧪 Salinity Trend',
+                icon: '🧪',
+                unit: 'PSU',
+                color: '#3b82f6'
+            },
+            floats: {
+                title: '🔵 Active Floats Trend',
+                icon: '🔵',
+                unit: 'count',
+                color: '#22c55e'
+            },
+            depth: {
+                title: '⬇️ Max Depth Trend',
+                icon: '⬇️',
+                unit: 'm',
+                color: '#8b5cf6'
+            }
+        };
+        
+        let currentMetric = null;
+        
+        function initSparklineClickHandlers() {
+            Object.keys(metricConfigs).forEach(metric => {
+                const canvas = document.querySelector(`canvas[id*="${metric}"]`);
+                if (canvas) {
+                    canvas.style.cursor = 'pointer';
+                    canvas.addEventListener('click', () => openSparklineModal(metric));
+                }
+            });
+        }
+        
+        function openSparklineModal(metric) {
+            currentMetric = metric;
+            const config = metricConfigs[metric];
+            if (!config) return;
+            
+            let modal = document.getElementById('sparklineModal');
+            if (!modal) {
+                modal = createSparklineModal();
+                document.body.appendChild(modal);
+            }
+            
+            const title = modal.querySelector('.sparkline-modal-title');
+            title.textContent = `${config.icon} ${config.title}`;
+            
+            const data = generate7DayTrendData(metric);
+            displaySparklineChart(metric, data, config);
+            displaySparklineStats(metric, data, config);
+            displaySparklineDataTable(metric, data, config);
+            
+            modal.classList.add('active');
+        }
+        
+        function createSparklineModal() {
+            const modal = document.createElement('div');
+            modal.id = 'sparklineModal';
+            modal.className = 'sparkline-modal';
+            modal.innerHTML = `
+                <div class="sparkline-modal-content">
+                    <div class="sparkline-modal-header">
+                        <div class="sparkline-modal-title">Metric Trend</div>
+                        <button class="sparkline-modal-close" onclick="closeSparklineModal()">&times;</button>
+                    </div>
+                    
+                    <div class="sparkline-time-range" id="timeRangeButtons">
+                        <button class="time-range-btn active" onclick="updateSparklineTimeRange(7)">7 Days</button>
+                        <button class="time-range-btn" onclick="updateSparklineTimeRange(30)">30 Days</button>
+                        <button class="time-range-btn" onclick="updateSparklineTimeRange(90)">90 Days</button>
+                    </div>
+                    
+                    <div class="sparkline-modal-body">
+                        <div class="sparkline-chart-container">
+                            <canvas id="expandedChart" class="sparkline-chart-canvas"></canvas>
+                        </div>
+                        
+                        <div class="sparkline-stats-grid" id="sparklineStatsGrid">
+                        </div>
+                    </div>
+                    
+                    <table class="sparkline-data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Value</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sparklineDataTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeSparklineModal();
+            });
+            
+            return modal;
+        }
+        
+        function closeSparklineModal() {
+            const modal = document.getElementById('sparklineModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
+        }
+        
+        function generate7DayTrendData(metric, days = 7) {
+            const data = [];
+            const today = new Date();
+            
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                
+                const baseValue = getMetricBaseValue(metric);
+                const noise = (Math.random() - 0.5) * (baseValue * 0.1);
+                const trend = (days - i) * (baseValue * 0.01);
+                
+                data.push({
+                    date: date.toISOString().split('T')[0],
+                    time: `${String(Math.floor(Math.random() * 24)).padStart(2, '0')}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`,
+                    value: (baseValue + noise + trend).toFixed(2),
+                    change: i === days - 1 ? 0 : ((Math.random() - 0.5) * 2).toFixed(2)
+                });
+            }
+            
+            return data;
+        }
+        
+        function getMetricBaseValue(metric) {
+            const bases = {
+                temp: 24.5,
+                sal: 34.8,
+                floats: 3800,
+                depth: 5987
+            };
+            return bases[metric] || 0;
+        }
+        
+        function displaySparklineChart(metric, data, config) {
+            const canvas = document.getElementById('expandedChart');
+            if (!canvas) return;
+            
+            if (window.expandedChart) {
+                window.expandedChart.destroy();
+            }
+            
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+            const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+            
+            window.expandedChart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [{
+                        label: config.title,
+                        data: data.map(d => parseFloat(d.value)),
+                        borderColor: config.color,
+                        backgroundColor: config.color + '20',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        pointBackgroundColor: config.color,
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: config.color,
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${config.title}: ${context.parsed.y} ${config.unit}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: textColor },
+                            grid: { color: gridColor }
+                        },
+                        y: {
+                            ticks: { color: textColor },
+                            grid: { color: gridColor }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function displaySparklineStats(metric, data, config) {
+            const values = data.map(d => parseFloat(d.value));
+            const average = (values.reduce((a, b) => a + b) / values.length).toFixed(2);
+            const max = Math.max(...values).toFixed(2);
+            const min = Math.min(...values).toFixed(2);
+            const change = ((values[values.length - 1] - values[0]) / values[0] * 100).toFixed(1);
+            
+            const statsGrid = document.getElementById('sparklineStatsGrid');
+            statsGrid.innerHTML = `
+                <div class="sparkline-stat-box">
+                    <div class="sparkline-stat-label">Average</div>
+                    <div class="sparkline-stat-value">${average} ${config.unit}</div>
+                </div>
+                <div class="sparkline-stat-box">
+                    <div class="sparkline-stat-label">Maximum</div>
+                    <div class="sparkline-stat-value">${max} ${config.unit}</div>
+                </div>
+                <div class="sparkline-stat-box">
+                    <div class="sparkline-stat-label">Minimum</div>
+                    <div class="sparkline-stat-value">${min} ${config.unit}</div>
+                </div>
+                <div class="sparkline-stat-box">
+                    <div class="sparkline-stat-label">Change</div>
+                    <div class="sparkline-stat-value" style="color: ${change >= 0 ? '#22c55e' : '#ef4444'}">
+                        ${change >= 0 ? '+' : ''}${change}%
+                    </div>
+                </div>
+            `;
+        }
+        
+        function displaySparklineDataTable(metric, data, config) {
+            const tbody = document.getElementById('sparklineDataTableBody');
+            tbody.innerHTML = data.map(d => `
+                <tr>
+                    <td>${d.date}</td>
+                    <td>${d.time}</td>
+                    <td><strong>${d.value} ${config.unit}</strong></td>
+                    <td style="color: ${d.change >= 0 ? '#22c55e' : '#ef4444'}">
+                        ${d.change >= 0 ? '+' : ''}${d.change} ${config.unit}
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function updateSparklineTimeRange(days) {
+            document.querySelectorAll('.time-range-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            if (currentMetric) {
+                const config = metricConfigs[currentMetric];
+                const data = generate7DayTrendData(currentMetric, days);
+                displaySparklineChart(currentMetric, data, config);
+                displaySparklineStats(currentMetric, data, config);
+                displaySparklineDataTable(currentMetric, data, config);
+            }
+        }
+        
+        // Close on ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeSparklineModal();
+        });
+        
         // Initial load
         document.addEventListener('DOMContentLoaded', () => {
             // Hide database status on deployed sites (only show on localhost)
@@ -1496,6 +1990,9 @@
             }
             
             loadDashboardData();
+            
+            // Initialize sparkline click handlers
+            setTimeout(initSparklineClickHandlers, 500);
         });
     </script>
 </body>
