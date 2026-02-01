@@ -1745,10 +1745,12 @@
         let currentMetric = null;
         
         function initSparklineClickHandlers() {
+            console.log('Initializing sparkline click handlers...');
             // Make stat cards clickable to expand sparkline
             const statCards = document.querySelectorAll('.stat-card');
+            console.log('Found stat cards:', statCards.length);
             
-            statCards.forEach(card => {
+            statCards.forEach((card, index) => {
                 // Determine which metric this card is
                 let metric = null;
                 if (card.classList.contains('temp')) metric = 'temp';
@@ -1756,10 +1758,13 @@
                 else if (card.classList.contains('floats')) metric = 'floats';
                 else if (card.classList.contains('depth')) metric = 'depth';
                 
+                console.log(`Card ${index}:`, metric, card.className);
+                
                 if (metric) {
                     // Make entire card clickable
                     card.style.cursor = 'pointer';
                     card.addEventListener('click', (e) => {
+                        console.log('Stat card clicked:', metric);
                         // Don't trigger if clicking on select/button
                         if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON') {
                             openSparklineModal(metric);
@@ -1769,9 +1774,11 @@
                     // Also make sparkline canvas directly clickable
                     const canvas = card.querySelector('canvas');
                     if (canvas) {
+                        console.log(`Canvas found for ${metric}`);
                         canvas.style.cursor = 'pointer';
                         canvas.style.pointerEvents = 'auto';
                         canvas.addEventListener('click', (e) => {
+                            console.log('Canvas clicked:', metric);
                             e.stopPropagation();
                             openSparklineModal(metric);
                         });
@@ -1781,14 +1788,21 @@
         }
         
         function openSparklineModal(metric) {
+            console.log('openSparklineModal called with metric:', metric);
             currentMetric = metric;
             const config = metricConfigs[metric];
-            if (!config) return;
+            console.log('Config:', config);
+            if (!config) {
+                console.error('No config found for metric:', metric);
+                return;
+            }
             
             let modal = document.getElementById('sparklineModal');
             if (!modal) {
+                console.log('Creating modal...');
                 modal = createSparklineModal();
                 document.body.appendChild(modal);
+                console.log('Modal created and appended');
             }
             
             const title = modal.querySelector('.sparkline-modal-title');
@@ -1799,7 +1813,9 @@
             displaySparklineStats(metric, data, config);
             displaySparklineDataTable(metric, data, config);
             
+            console.log('Adding active class to modal');
             modal.classList.add('active');
+            console.log('Modal should now be visible');
         }
         
         function createSparklineModal() {
