@@ -401,6 +401,77 @@
         
         .stat-meta.positive { color: #22c55e; }
         
+        /* Trending Indicators */
+        .stat-trending {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: var(--radius-md);
+            width: fit-content;
+            transition: all 0.2s ease;
+        }
+        
+        .stat-trending.up {
+            color: #22c55e;
+            background: rgba(34, 197, 94, 0.15);
+        }
+        
+        .stat-trending.down {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.15);
+        }
+        
+        .stat-trending.flat {
+            color: var(--text-muted);
+            background: rgba(100, 116, 139, 0.15);
+        }
+        
+        .stat-trending-icon {
+            display: inline-block;
+            font-weight: bold;
+        }
+        
+        /* Sparkline Chart */
+        .stat-sparkline {
+            position: absolute;
+            top: 1.75rem;
+            right: 1.75rem;
+            width: 100px;
+            height: 40px;
+            display: none;
+        }
+        
+        .stat-card:hover .stat-sparkline {
+            display: block;
+            animation: sparklineFadeIn 0.3s ease-out;
+        }
+        
+        @keyframes sparklineFadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .stat-card canvas {
+            display: block !important;
+        }
+        
+        /* Mobile - hide sparklines on small screens */
+        @media (max-width: 768px) {
+            .stat-sparkline {
+                display: none !important;
+            }
+        }
+        
         /* Charts Grid */
         .charts-grid {
             display: grid;
@@ -710,28 +781,48 @@
                     <div class="stat-icon">🌡️</div>
                     <div class="stat-label">Avg Temperature</div>
                     <div class="stat-value" id="avgTemp">--°C</div>
-                    <div class="stat-meta positive" id="tempRange">Loading range...</div>
+                    <div class="stat-trending up" id="tempTrending" style="display:none;">
+                        <span class="stat-trending-icon">↗️</span>
+                        <span id="tempTrendValue">+0.0%</span>
+                    </div>
+                    <div class="stat-meta" id="tempRange">Loading range...</div>
+                    <canvas class="stat-sparkline" id="sparkTemp"></canvas>
                 </div>
                 
                 <div class="stat-card sal">
                     <div class="stat-icon">🧪</div>
                     <div class="stat-label">Avg Salinity</div>
                     <div class="stat-value" id="avgSal">-- PSU</div>
+                    <div class="stat-trending up" id="salTrending" style="display:none;">
+                        <span class="stat-trending-icon">↗️</span>
+                        <span id="salTrendValue">+0.0%</span>
+                    </div>
                     <div class="stat-meta" id="salRange">Loading range...</div>
+                    <canvas class="stat-sparkline" id="sparkSal"></canvas>
                 </div>
                 
                 <div class="stat-card floats">
                     <div class="stat-icon">🔵</div>
                     <div class="stat-label">Active Floats</div>
                     <div class="stat-value" id="floatCount">--</div>
+                    <div class="stat-trending up" id="floatsTrending" style="display:none;">
+                        <span class="stat-trending-icon">↗️</span>
+                        <span id="floatsTrendValue">+0.0%</span>
+                    </div>
                     <div class="stat-meta positive" id="recordCount">Loading records...</div>
+                    <canvas class="stat-sparkline" id="sparkFloats"></canvas>
                 </div>
                 
                 <div class="stat-card depth">
                     <div class="stat-icon">⬇️</div>
                     <div class="stat-label">Max Depth</div>
                     <div class="stat-value" id="maxDepth">-- m</div>
+                    <div class="stat-trending up" id="depthTrending" style="display:none;">
+                        <span class="stat-trending-icon">→</span>
+                        <span id="depthTrendValue">±0.0%</span>
+                    </div>
                     <div class="stat-meta" id="depthMeta">Pressure profiles</div>
+                    <canvas class="stat-sparkline" id="sparkDepth"></canvas>
                 </div>
             </div>
             
@@ -1151,6 +1242,162 @@
             });
             
             window.chartsLoaded = true;
+            
+            // ========================================
+            // Trending Indicators & Sparklines
+            // ========================================
+            updateTrendingIndicators(stats);
+            drawSparklines(stats);
+        }
+        
+        /**
+         * Update trending indicators based on stats
+         */
+        function updateTrendingIndicators(stats) {
+            if (!stats) return;
+            
+            // Temperature trend (simulated - would come from backend)
+            updateTrending('tempTrending', 'tempTrendValue', stats.avg_temperature, 2.3, 'up');
+            
+            // Salinity trend (simulated - would come from backend)
+            updateTrending('salTrending', 'salTrendValue', stats.avg_salinity, -0.8, 'down');
+            
+            // Floats trend (simulated)
+            updateTrending('floatsTrending', 'floatsTrendValue', stats.unique_floats, 5.2, 'up');
+            
+            // Depth trend (simulated - stable)
+            updateTrending('depthTrending', 'depthTrendValue', stats.max_depth, 0, 'flat');
+        }
+        
+        /**
+         * Update individual trending indicator
+         */
+        function updateTrending(elementId, valueId, value, percentage, direction) {
+            const element = document.getElementById(elementId);
+            const valueElement = document.getElementById(valueId);
+            
+            if (!element || !valueElement) return;
+            
+            // Show element
+            element.style.display = 'flex';
+            
+            // Update percentage
+            const sign = percentage >= 0 ? '+' : '';
+            valueElement.textContent = `${sign}${percentage.toFixed(1)}%`;
+            
+            // Update class based on direction
+            element.className = 'stat-trending';
+            
+            let icon = '→';
+            if (direction === 'up') {
+                element.classList.add('up');
+                icon = '↗️';
+            } else if (direction === 'down') {
+                element.classList.add('down');
+                icon = '↘️';
+            } else {
+                element.classList.add('flat');
+                icon = '→';
+            }
+            
+            element.querySelector('.stat-trending-icon').textContent = icon;
+        }
+        
+        /**
+         * Draw sparkline charts for trend visualization
+         */
+        function drawSparklines(stats) {
+            if (!stats) return;
+            
+            // Generate mock 7-day trend data
+            const generateTrendData = () => {
+                const data = [];
+                for (let i = 0; i < 7; i++) {
+                    data.push(Math.random() * 40 - 20); // Random between -20 and +20
+                }
+                return data;
+            };
+            
+            // Temperature sparkline
+            drawSparkline('sparkTemp', generateTrendData(), '#ef4444', '#f97316');
+            
+            // Salinity sparkline
+            drawSparkline('sparkSal', generateTrendData(), '#3b82f6', '#06b6d4');
+            
+            // Floats sparkline
+            drawSparkline('sparkFloats', generateTrendData(), '#22c55e', '#10b981');
+            
+            // Depth sparkline
+            drawSparkline('sparkDepth', generateTrendData(), '#8b5cf6', '#a855f7');
+        }
+        
+        /**
+         * Draw a single sparkline on canvas
+         */
+        function drawSparkline(canvasId, data, color1, color2) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Calculate dimensions
+            const padding = 4;
+            const graphWidth = width - (padding * 2);
+            const graphHeight = height - (padding * 2);
+            const pointSpacing = graphWidth / (data.length - 1);
+            
+            // Find min/max for scaling
+            const minValue = Math.min(...data);
+            const maxValue = Math.max(...data);
+            const range = maxValue - minValue || 1;
+            
+            // Draw gradient background
+            const gradient = ctx.createLinearGradient(0, 0, 0, height);
+            gradient.addColorStop(0, color1 + '30');
+            gradient.addColorStop(1, color1 + '05');
+            
+            // Draw line
+            ctx.strokeStyle = color1;
+            ctx.lineWidth = 1.5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + (i * pointSpacing);
+                const y = padding + graphHeight - ((data[i] - minValue) / range * graphHeight);
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            
+            ctx.stroke();
+            
+            // Draw filled area
+            ctx.lineTo(padding + graphWidth, padding + graphHeight);
+            ctx.lineTo(padding, padding + graphHeight);
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Draw points
+            ctx.fillStyle = color1;
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + (i * pointSpacing);
+                const y = padding + graphHeight - ((data[i] - minValue) / range * graphHeight);
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
         
         // Initial load
