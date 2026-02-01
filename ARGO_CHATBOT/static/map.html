@@ -431,6 +431,99 @@
             text-align: center;
         }
         
+        /* Trajectory Date Picker Modal */
+        .traj-date-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+        
+        .traj-date-modal.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .traj-date-modal-content {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            width: 90%;
+            max-width: 360px;
+            transform: scale(0.9);
+            transition: transform 0.2s ease;
+        }
+        
+        .traj-date-modal.visible .traj-date-modal-content {
+            transform: scale(1);
+        }
+        
+        .traj-date-modal h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .traj-date-modal p {
+            margin: 0 0 20px 0;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        
+        .traj-date-modal .date-inputs {
+            margin-bottom: 20px;
+        }
+        
+        .traj-date-modal .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .traj-date-modal .modal-btn {
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .traj-date-modal .modal-btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        
+        .traj-date-modal .modal-btn-cancel:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+        
+        .traj-date-modal .modal-btn-confirm {
+            background: var(--accent);
+            border: 1px solid var(--accent);
+            color: white;
+        }
+        
+        .traj-date-modal .modal-btn-confirm:hover {
+            background: var(--accent-hover);
+        }
+
         /* Nearby Floats List */
         .nearby-floats {
             margin-top: 16px;
@@ -1224,6 +1317,28 @@
         </div>
     </div>
     
+    <!-- Trajectory Date Picker Modal -->
+    <div class="traj-date-modal" id="trajDateModal">
+        <div class="traj-date-modal-content">
+            <h3>📍 Select Trajectory Period</h3>
+            <p id="trajModalFloatName">Float trajectory for: <strong></strong></p>
+            <div class="date-inputs">
+                <div class="date-input-group">
+                    <label for="trajStartDate">From</label>
+                    <input type="month" id="trajStartDate" value="2025-01" min="2025-01" max="2026-01">
+                </div>
+                <div class="date-input-group">
+                    <label for="trajEndDate">To</label>
+                    <input type="month" id="trajEndDate" value="2026-01" min="2025-01" max="2026-01">
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" id="trajModalCancel">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="trajModalConfirm">Show Trajectory</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         // ========================================
         // Interactive Map Explorer
@@ -1405,18 +1520,85 @@
             });
             
             updateDateRangeInfo();
+            
+            // Setup trajectory date picker modal
+            setupTrajectoryModal();
         }
         
-        // Load full trajectory data for selected float - filtered by date range
-        async function loadFullTrajectory() {
+        // Setup trajectory date picker modal
+        function setupTrajectoryModal() {
+            const modal = document.getElementById('trajDateModal');
+            const trajStartDate = document.getElementById('trajStartDate');
+            const trajEndDate = document.getElementById('trajEndDate');
+            const cancelBtn = document.getElementById('trajModalCancel');
+            const confirmBtn = document.getElementById('trajModalConfirm');
+            const floatNameEl = document.getElementById('trajModalFloatName');
+            
+            // Cancel button - close modal
+            cancelBtn.addEventListener('click', () => {
+                modal.classList.remove('visible');
+            });
+            
+            // Click outside to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('visible');
+                }
+            });
+            
+            // Confirm button - load trajectory with selected dates
+            confirmBtn.addEventListener('click', async () => {
+                const trajStart = trajStartDate.value;
+                const trajEnd = trajEndDate.value;
+                
+                // Validate
+                if (trajStart > trajEnd) {
+                    alert('Start date must be before end date');
+                    return;
+                }
+                
+                modal.classList.remove('visible');
+                await fetchAndShowTrajectory(trajStart, trajEnd);
+            });
+        }
+        
+        // Show trajectory date picker modal
+        function showTrajectoryModal() {
             if (!selectedFloatId) {
                 alert('Please select a float first');
                 return;
             }
             
-            // Filter existing data by date range first
+            const modal = document.getElementById('trajDateModal');
+            const floatNameEl = document.getElementById('trajModalFloatName');
+            
+            // Set float name in modal
+            floatNameEl.innerHTML = `Trajectory for Float: <strong>${selectedFloatId}</strong>`;
+            
+            // Show modal
+            modal.classList.add('visible');
+        }
+        
+        // Fetch and show trajectory for selected date range
+        async function fetchAndShowTrajectory(trajStartFilter, trajEndFilter) {
+            if (!selectedFloatId) return;
+            
+            // Filter function for these specific dates
+            function filterByTrajDates(data) {
+                if (!data || data.length === 0) return [];
+                const startDate = new Date(trajStartFilter + '-01');
+                const endDate = new Date(trajEndFilter + '-28');
+                endDate.setMonth(endDate.getMonth() + 1);
+                return data.filter(d => {
+                    if (!d.timestamp) return false;
+                    const ts = new Date(d.timestamp);
+                    return ts >= startDate && ts <= endDate;
+                });
+            }
+            
+            // Try existing data first
             const existingData = floatGroups[selectedFloatId];
-            const filteredExisting = filterDataByDateRange(existingData);
+            const filteredExisting = filterByTrajDates(existingData);
             
             if (filteredExisting && filteredExisting.length >= 2) {
                 showTrajectory(filteredExisting);
@@ -1428,9 +1610,9 @@
                 el.viewTrajectoryBtn.disabled = true;
                 el.viewTrajectoryBtn.innerHTML = '<div class="spinner" style="width:14px;height:14px;"></div> Loading...';
                 
-                // Fetch trajectory from API with date filter
-                const startDate = `${startDateFilter}-01`;
-                const endDate = `${endDateFilter}-28`;
+                // Fetch trajectory from API with selected date filter
+                const startDate = `${trajStartFilter}-01`;
+                const endDate = `${trajEndFilter}-28`;
                 const response = await fetch(`${API_BASE}/api/query`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1442,25 +1624,35 @@
                 const result = await response.json();
                 
                 if (result.data && result.data.length > 0) {
-                    // Filter again to ensure date range compliance
-                    const filteredData = filterDataByDateRange(result.data);
-                    floatGroups[selectedFloatId] = result.data;
-                    showTrajectory(filteredData);
-                } else if (filteredExisting && filteredExisting.length >= 2) {
-                    showTrajectory(filteredExisting);
+                    const filteredData = filterByTrajDates(result.data);
+                    // Cache all data for future use
+                    if (!floatGroups[selectedFloatId]) {
+                        floatGroups[selectedFloatId] = result.data;
+                    } else {
+                        // Merge new data
+                        const existingIds = new Set(floatGroups[selectedFloatId].map(d => d.timestamp));
+                        result.data.forEach(d => {
+                            if (!existingIds.has(d.timestamp)) {
+                                floatGroups[selectedFloatId].push(d);
+                            }
+                        });
+                    }
+                    
+                    if (filteredData.length >= 2) {
+                        showTrajectory(filteredData);
+                    } else {
+                        const startMonth = new Date(trajStartFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                        const endMonth = new Date(trajEndFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                        alert(`Not enough data points for trajectory between ${startMonth} and ${endMonth}. Need at least 2 points.`);
+                    }
                 } else {
-                    const startMonth = new Date(startDateFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                    const endMonth = new Date(endDateFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    const startMonth = new Date(trajStartFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    const endMonth = new Date(trajEndFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                     alert(`No trajectory data for float ${selectedFloatId} between ${startMonth} and ${endMonth}`);
                 }
             } catch (error) {
                 console.error('Error loading trajectory:', error);
-                // Fallback to filtered existing data
-                if (filteredExisting && filteredExisting.length >= 2) {
-                    showTrajectory(filteredExisting);
-                } else {
-                    alert('Unable to load trajectory data for the selected time period.');
-                }
+                alert('Unable to load trajectory data. Please try again.');
             } finally {
                 el.viewTrajectoryBtn.disabled = false;
                 el.viewTrajectoryBtn.innerHTML = `
@@ -1471,7 +1663,12 @@
             }
         }
         
-        // Filter data array by the selected date range
+        // Original loadFullTrajectory now shows the modal
+        function loadFullTrajectory() {
+            showTrajectoryModal();
+        }
+        
+        // Filter data array by the selected date range (for search filter)
         function filterDataByDateRange(data) {
             if (!data || data.length === 0) return [];
             
@@ -1486,19 +1683,17 @@
             });
         }
         
-        // Load full profile data for selected float - filtered by date range
+        // Load full profile data for selected float (shows all available data)
         async function loadFullProfile() {
             if (!selectedFloatId) {
                 alert('Please select a float first');
                 return;
             }
             
-            // Filter existing data by date range first
+            // Use existing data if available
             const existingData = floatGroups[selectedFloatId];
-            const filteredExisting = filterDataByDateRange(existingData);
-            
-            if (filteredExisting && filteredExisting.length > 0) {
-                showProfile(filteredExisting);
+            if (existingData && existingData.length > 0) {
+                showProfile(existingData);
                 return;
             }
             
@@ -1506,37 +1701,26 @@
                 el.viewProfileBtn.disabled = true;
                 el.viewProfileBtn.innerHTML = '<div class="spinner" style="width:14px;height:14px;"></div> Loading...';
                 
-                // Fetch profile data with date filter
-                const startDate = `${startDateFilter}-01`;
-                const endDate = `${endDateFilter}-28`;
+                // Fetch all profile data for this float
                 const response = await fetch(`${API_BASE}/api/query`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        query: `all data for float ${selectedFloatId} between ${startDate} and ${endDate}` 
+                        query: `all data for float ${selectedFloatId}` 
                     })
                 });
                 
                 const result = await response.json();
                 
                 if (result.data && result.data.length > 0) {
-                    const filteredData = filterDataByDateRange(result.data);
                     floatGroups[selectedFloatId] = result.data;
-                    showProfile(filteredData.length > 0 ? filteredData : result.data);
-                } else if (filteredExisting && filteredExisting.length > 0) {
-                    showProfile(filteredExisting);
+                    showProfile(result.data);
                 } else {
-                    const startMonth = new Date(startDateFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                    const endMonth = new Date(endDateFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                    alert(`No profile data for float ${selectedFloatId} between ${startMonth} and ${endMonth}`);
+                    alert(`No profile data found for float ${selectedFloatId}`);
                 }
             } catch (error) {
                 console.error('Error loading profile:', error);
-                if (filteredExisting && filteredExisting.length > 0) {
-                    showProfile(filteredExisting);
-                } else {
-                    alert('Unable to load profile data for the selected time period.');
-                }
+                alert('Unable to load profile data. Please try again.');
             } finally {
                 el.viewProfileBtn.disabled = false;
                 el.viewProfileBtn.innerHTML = `
