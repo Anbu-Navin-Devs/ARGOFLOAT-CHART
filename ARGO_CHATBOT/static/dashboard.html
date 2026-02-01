@@ -465,6 +465,20 @@
             display: block !important;
         }
         
+        .stat-card {
+            cursor: pointer;
+        }
+        
+        .stat-sparkline {
+            position: absolute;
+            top: 1.75rem;
+            right: 1.75rem;
+            width: 100px;
+            height: 40px;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        
         /* Mobile - hide sparklines on small screens */
         @media (max-width: 768px) {
             .stat-sparkline {
@@ -1731,11 +1745,37 @@
         let currentMetric = null;
         
         function initSparklineClickHandlers() {
-            Object.keys(metricConfigs).forEach(metric => {
-                const canvas = document.querySelector(`canvas[id*="${metric}"]`);
-                if (canvas) {
-                    canvas.style.cursor = 'pointer';
-                    canvas.addEventListener('click', () => openSparklineModal(metric));
+            // Make stat cards clickable to expand sparkline
+            const statCards = document.querySelectorAll('.stat-card');
+            
+            statCards.forEach(card => {
+                // Determine which metric this card is
+                let metric = null;
+                if (card.classList.contains('temp')) metric = 'temp';
+                else if (card.classList.contains('sal')) metric = 'sal';
+                else if (card.classList.contains('floats')) metric = 'floats';
+                else if (card.classList.contains('depth')) metric = 'depth';
+                
+                if (metric) {
+                    // Make entire card clickable
+                    card.style.cursor = 'pointer';
+                    card.addEventListener('click', (e) => {
+                        // Don't trigger if clicking on select/button
+                        if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON') {
+                            openSparklineModal(metric);
+                        }
+                    });
+                    
+                    // Also make sparkline canvas directly clickable
+                    const canvas = card.querySelector('canvas');
+                    if (canvas) {
+                        canvas.style.cursor = 'pointer';
+                        canvas.style.pointerEvents = 'auto';
+                        canvas.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openSparklineModal(metric);
+                        });
+                    }
                 }
             });
         }
