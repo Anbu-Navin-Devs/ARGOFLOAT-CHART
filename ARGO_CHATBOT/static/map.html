@@ -373,6 +373,64 @@
             line-height: 1.6;
         }
         
+        /* Date Range Filter */
+        .date-range-filter {
+            padding: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+        }
+        
+        .date-range-filter .section-title {
+            margin-bottom: 12px;
+        }
+        
+        .date-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .date-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .date-input-group label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+        
+        .date-input-group input[type="month"] {
+            padding: 8px 10px;
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .date-input-group input[type="month"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .date-range-info {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+        
         /* Nearby Floats List */
         .nearby-floats {
             margin-top: 16px;
@@ -1027,6 +1085,32 @@
             </div>
             
             <div class="panel-content" id="panelContent">
+                <!-- Date Range Filter - Always visible -->
+                <div class="date-range-filter" id="dateRangeFilter">
+                    <div class="section-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        Time Filter
+                    </div>
+                    <div class="date-inputs">
+                        <div class="date-input-group">
+                            <label for="startDate">From</label>
+                            <input type="month" id="startDate" value="2025-01" min="2025-01" max="2026-01">
+                        </div>
+                        <div class="date-input-group">
+                            <label for="endDate">To</label>
+                            <input type="month" id="endDate" value="2026-01" min="2025-01" max="2026-01">
+                        </div>
+                    </div>
+                    <div class="date-range-info" id="dateRangeInfo">
+                        📅 Showing floats from <strong>Jan 2025</strong> to <strong>Jan 2026</strong>
+                    </div>
+                </div>
+                
                 <!-- Empty State - Only shown initially -->
                 <div class="empty-state" id="emptyState">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1156,6 +1240,8 @@
         let floatGroups = {};
         let clickedLat = null;
         let clickedLng = null;
+        let startDateFilter = '2025-01';
+        let endDateFilter = '2026-01';
         
         // Ocean detection based on coordinates
         function detectOcean(lat, lon) {
@@ -1280,6 +1366,45 @@
             el.viewTrajectoryBtn.addEventListener('click', () => loadFullTrajectory());
             el.viewProfileBtn.addEventListener('click', () => loadFullProfile());
             el.exportBtn.addEventListener('click', exportData);
+            
+            // Date range filter listeners
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+            const dateRangeInfo = document.getElementById('dateRangeInfo');
+            
+            function updateDateRangeInfo() {
+                const startMonth = new Date(startDateInput.value + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                const endMonth = new Date(endDateInput.value + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                dateRangeInfo.innerHTML = `📅 Showing floats from <strong>${startMonth}</strong> to <strong>${endMonth}</strong>`;
+                startDateFilter = startDateInput.value;
+                endDateFilter = endDateInput.value;
+            }
+            
+            startDateInput.addEventListener('change', () => {
+                // Ensure start is not after end
+                if (startDateInput.value > endDateInput.value) {
+                    endDateInput.value = startDateInput.value;
+                }
+                updateDateRangeInfo();
+                // Re-query if location already clicked
+                if (clickedLat !== null && clickedLng !== null) {
+                    onMapClick({ latlng: { lat: clickedLat, lng: clickedLng } });
+                }
+            });
+            
+            endDateInput.addEventListener('change', () => {
+                // Ensure end is not before start
+                if (endDateInput.value < startDateInput.value) {
+                    startDateInput.value = endDateInput.value;
+                }
+                updateDateRangeInfo();
+                // Re-query if location already clicked
+                if (clickedLat !== null && clickedLng !== null) {
+                    onMapClick({ latlng: { lat: clickedLat, lng: clickedLng } });
+                }
+            });
+            
+            updateDateRangeInfo();
         }
         
         // Load full trajectory data for selected float
@@ -1441,11 +1566,17 @@
             // Show clicked location info immediately
             el.clickedLocation.classList.remove('hidden');
             el.locationCoords.textContent = `${lat.toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${lng.toFixed(4)}°${lng >= 0 ? 'E' : 'W'}`;
-            el.locationOcean.textContent = `${oceanName} • Searching within 500km radius...`;
             
-            // Query for nearby floats
+            // Format date range for display
+            const startMonth = new Date(startDateFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            const endMonth = new Date(endDateFilter + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            el.locationOcean.textContent = `${oceanName} • ${startMonth} - ${endMonth} • Searching...`;
+            
+            // Query for nearby floats with date filter
             try {
-                const question = `Find nearest 10 ARGO floats within 500km of latitude ${lat.toFixed(2)} longitude ${lng.toFixed(2)}`;
+                const startDate = `${startDateFilter}-01`;
+                const endDate = `${endDateFilter}-28`;  // End of month approx
+                const question = `Find nearest 10 ARGO floats within 500km of latitude ${lat.toFixed(2)} longitude ${lng.toFixed(2)} between ${startDate} and ${endDate}`;
                 const res = await fetch(`${API_BASE}/api/query`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1455,16 +1586,17 @@
                 
                 currentFloatData = result.data || [];
                 
-                // Update location info
+                // Update location info with date range
                 const numFloats = Object.keys(floatGroups).length || new Set(currentFloatData.map(d => d.float_id)).size;
-                el.locationOcean.textContent = `${oceanName} • ${numFloats} float(s) found nearby`;
+                el.locationOcean.textContent = `${oceanName} • ${startMonth} - ${endMonth} • ${numFloats} float(s)`;
                 
-                // Update click marker popup
+                // Update click marker popup with date range
                 clickMarker.setPopupContent(`
                     <div class="popup-title">📍 Selected Location</div>
                     <div class="popup-info">
                         <strong>${lat.toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${lng.toFixed(4)}°${lng >= 0 ? 'E' : 'W'}</strong><br>
                         ${oceanName}<br>
+                        <em style="color: #94a3b8;">📅 ${startMonth} - ${endMonth}</em><br>
                         <strong style="color: #22c55e;">${currentFloatData.length} records from ${numFloats} float(s)</strong>
                     </div>
                 `);
