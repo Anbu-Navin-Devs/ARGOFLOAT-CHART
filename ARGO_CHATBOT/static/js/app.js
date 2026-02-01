@@ -1563,7 +1563,8 @@ async function sendQueryNormal(question) {
         removeTypingIndicator(typingId);
         
         const summary = result.summary || 'Query completed';
-        addMessage(summary, 'assistant');
+        const suggestions = generateQuickReplyChips(question);
+        addMessage(summary, 'assistant', suggestions);
         
         state.conversationHistory.push({ role: 'assistant', content: summary });
         if (state.conversationHistory.length > CONFIG.MAX_CONVERSATION) {
@@ -2549,7 +2550,7 @@ function switchTab(tab) {
 // ========================================
 // Chat Messages (Enhanced)
 // ========================================
-function addMessage(text, type) {
+function addMessage(text, type, suggestions = null) {
     const welcome = el.chatMessages?.querySelector('.welcome-msg');
     if (welcome && type === 'user') {
         welcome.style.display = 'none';
@@ -2557,9 +2558,21 @@ function addMessage(text, type) {
     
     const msg = document.createElement('div');
     msg.className = `message ${type}`;
+    msg.dataset.messageId = 'msg-' + Date.now();
+    
+    const messageTime = formatTime();
+    const messageContent = type === 'assistant' ? formatMarkdown(text) : escapeHtml(text);
+    
     msg.innerHTML = `
-        <div class="message-content">${type === 'assistant' ? formatMarkdown(text) : escapeHtml(text)}</div>
-        <span class="message-time">${formatTime()}</span>
+        <div class="message-wrapper">
+            <div class="message-content">${messageContent}</div>
+            <div class="message-meta">
+                <span class="message-time">${messageTime}</span>
+                ${type === 'assistant' ? '<span class="message-status sent">✓</span>' : ''}
+                ${type === 'assistant' ? `<button class="message-copy-btn" title="Copy message" onclick="copyMessageToClipboard('${msg.dataset.messageId}')">📋</button>` : ''}
+            </div>
+        </div>
+        ${suggestions && type === 'assistant' ? `<div class="message-suggestions">${suggestions}</div>` : ''}
     `;
     
     // Animation
@@ -2577,6 +2590,84 @@ function addMessage(text, type) {
     el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
 }
 
+function copyMessageToClipboard(messageId) {
+    const msg = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (!msg) return;
+    
+    const content = msg.querySelector('.message-content')?.innerText || '';
+    navigator.clipboard.writeText(content).then(() => {
+        showToast('Message copied to clipboard!', 'success');
+    }).catch(() => {
+        showToast('Failed to copy message', 'error');
+    });
+}
+
+function generateQuickReplyChips(query) {
+    // Generate context-aware quick reply suggestions based on the query
+    const suggestions = [];
+    
+    // Analyze query to determine what suggestions to show
+    if (query.toLowerCase().includes('temp') || query.toLowerCase().includes('temperature')) {
+        suggestions.push({
+            text: '📈 Show trend',
+            query: 'Show temperature trend for this region'
+        });
+        suggestions.push({
+            text: '🔍 Compare regions',
+            query: 'Compare temperature across regions'
+        });
+    } else if (query.toLowerCase().includes('salinity')) {
+        suggestions.push({
+            text: '🔍 Salinity distribution',
+            query: 'Show salinity distribution'
+        });
+        suggestions.push({
+            text: '📊 Historical data',
+            query: 'Show salinity trends over time'
+        });
+    } else if (query.toLowerCase().includes('float')) {
+        suggestions.push({
+            text: '🛤️ Show trajectory',
+            query: 'Show float trajectory on map'
+        });
+        suggestions.push({
+            text: '📍 Nearby floats',
+            query: 'Find floats in nearby region'
+        });
+    }
+    
+    // Add generic suggestions
+    if (suggestions.length < 3) {
+        suggestions.push({
+            text: '📊 View statistics',
+            query: 'Show detailed statistics'
+        });
+    }
+    
+    if (suggestions.length < 4) {
+        suggestions.push({
+            text: '🗺️ View on map',
+            query: 'Show on interactive map'
+        });
+    }
+    
+    // Create HTML for suggestion chips
+    let chipsHTML = '';
+    suggestions.slice(0, 3).forEach(suggestion => {
+        chipsHTML += `<button class="suggestion-chip" onclick="executeQuickReply('${suggestion.query}')">${suggestion.text}</button>`;
+    });
+    
+    return chipsHTML ? `<div class="quick-replies">${chipsHTML}</div>` : null;
+}
+
+function executeQuickReply(query) {
+    if (el.queryInput) {
+        el.queryInput.value = query;
+        el.queryInput.focus();
+        handleQuerySubmit();
+    }
+}
+
 function addTypingIndicator() {
     const id = 'typing-' + Date.now();
     const indicator = document.createElement('div');
@@ -2584,8 +2675,11 @@ function addTypingIndicator() {
     indicator.className = 'message assistant typing';
     indicator.innerHTML = `
         <div class="typing-indicator">
-            <span></span><span></span><span></span>
+            <span></span>
+            <span></span>
+            <span></span>
         </div>
+        <span class="typing-text">AI is thinking...</span>
     `;
     el.chatMessages?.appendChild(indicator);
     el.chatMessages.scrollTop = el.chatMessages.scrollHeight;
@@ -2593,7 +2687,12 @@ function addTypingIndicator() {
 }
 
 function removeTypingIndicator(id) {
-    document.getElementById(id)?.remove();
+    const element = document.getElementById(id);
+    if (element) {
+        element.style.opacity = '0';
+        element.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => element.remove(), 300);
+    }
 }
 
 // ========================================
