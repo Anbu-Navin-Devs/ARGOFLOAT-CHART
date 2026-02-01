@@ -1911,65 +1911,73 @@
             if (!canvas) return;
             
             if (window.expandedChart) {
-                window.expandedChart.destroy();
+                try {
+                    window.expandedChart.destroy();
+                } catch (e) {
+                    console.warn('Error destroying chart:', e);
+                }
             }
             
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             const textColor = isDark ? '#94a3b8' : '#64748b';
             const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
             
-            window.expandedChart = new Chart(canvas, {
-                type: 'line',
-                data: {
-                    labels: data.map(d => d.date),
-                    datasets: [{
-                        label: config.title,
-                        data: data.map(d => parseFloat(d.value)),
-                        borderColor: config.color,
-                        backgroundColor: config.color + '20',
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 5,
-                        pointHoverRadius: 8,
-                        pointBackgroundColor: config.color,
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        borderWidth: 3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(0,0,0,0.8)',
-                            titleColor: '#fff',
-                            bodyColor: '#fff',
+            try {
+                window.expandedChart = new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.date),
+                        datasets: [{
+                            label: config.title,
+                            data: data.map(d => parseFloat(d.value)),
                             borderColor: config.color,
-                            borderWidth: 1,
-                            padding: 12,
-                            displayColors: false,
-                            callbacks: {
-                                label: function(context) {
-                                    return `${config.title}: ${context.parsed.y} ${config.unit}`;
+                            backgroundColor: config.color + '20',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 5,
+                            pointHoverRadius: 8,
+                            pointBackgroundColor: config.color,
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(0,0,0,0.8)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                borderColor: config.color,
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${config.title}: ${context.parsed.y} ${config.unit}`;
+                                    }
                                 }
                             }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            ticks: { color: textColor },
-                            grid: { color: gridColor }
                         },
-                        y: {
-                            ticks: { color: textColor },
-                            grid: { color: gridColor }
+                        scales: {
+                            x: {
+                                ticks: { color: textColor },
+                                grid: { color: gridColor }
+                            },
+                            y: {
+                                ticks: { color: textColor },
+                                grid: { color: gridColor }
+                            }
                         }
                     }
-                }
-            });
-        }
+                });
+                console.log('Chart created successfully');
+            } catch (e) {
+                console.error('Error creating chart:', e);
+            }
         
         function displaySparklineStats(metric, data, config) {
             const values = data.map(d => parseFloat(d.value));
