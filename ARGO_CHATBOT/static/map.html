@@ -1799,10 +1799,23 @@
                 });
                 const result = await res.json();
                 
-                currentFloatData = result.data || [];
+                // Handle different response formats
+                let dataArray = [];
+                if (result.data && Array.isArray(result.data)) {
+                    dataArray = result.data;
+                } else if (result.results && Array.isArray(result.results)) {
+                    dataArray = result.results;
+                } else if (Array.isArray(result)) {
+                    dataArray = result;
+                }
+                
+                currentFloatData = dataArray;
+                
+                // Calculate numFloats AFTER getting data
+                const uniqueFloatIds = new Set(currentFloatData.map(d => d.float_id));
+                const numFloats = uniqueFloatIds.size;
                 
                 // Update location info with date range
-                const numFloats = Object.keys(floatGroups).length || new Set(currentFloatData.map(d => d.float_id)).size;
                 el.locationOcean.textContent = `${oceanName} • ${startMonth} - ${endMonth} • ${numFloats} float(s)`;
                 
                 // Update click marker popup with date range
@@ -1815,6 +1828,10 @@
                         <strong style="color: #22c55e;">${currentFloatData.length} records from ${numFloats} float(s)</strong>
                     </div>
                 `);
+                
+                console.log('Query result:', result);
+                console.log('Data array length:', currentFloatData.length);
+                console.log('Unique floats:', numFloats);
                 
                 if (currentFloatData.length > 0) {
                     // Store float groups for trajectory
@@ -1887,7 +1904,9 @@
         }
         
         function displayNearbyFloats(data) {
-            // Hide loading, show data
+            console.log('displayNearbyFloats called with', data.length, 'records');
+            
+            // Hide loading and empty state, show data section
             el.loadingState.classList.add('hidden');
             el.emptyState.classList.add('hidden');
             el.floatData.classList.remove('hidden');
@@ -1907,6 +1926,8 @@
             floatGroups = localFloatGroups;
             
             const numFloats = Object.keys(localFloatGroups).length;
+            console.log('Grouped into', numFloats, 'floats');
+            
             el.panelTitle.textContent = `${numFloats} Float${numFloats !== 1 ? 's' : ''} Found`;
             
             // Calculate summary stats
