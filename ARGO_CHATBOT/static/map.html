@@ -1611,7 +1611,6 @@
         let currentFloatData = [];
         let selectedFloatId = null;
         let floatGroups = {};
-        let markerMap = {}; // Store marker references by float ID
         let clickedLat = null;
         let clickedLng = null;
         let startDateFilter = '2025-01';
@@ -2330,7 +2329,6 @@
             // Remove float markers
             markers.forEach(m => m.remove());
             markers = [];
-            markerMap = {}; // Clear marker references
             // Remove trajectory
             if (trajectoryPath) {
                 trajectoryPath.remove();
@@ -2343,34 +2341,6 @@
             }
             // Reset selected float
             selectedFloatId = null;
-        }
-        
-        function highlightMarker(floatId, highlight) {
-            const marker = markerMap[floatId];
-            if (!marker) return;
-            
-            const markerElement = marker.getElement();
-            if (!markerElement) return;
-            
-            if (highlight) {
-                // Store original transform if not already stored
-                if (!markerElement.dataset.originalTransform) {
-                    markerElement.dataset.originalTransform = markerElement.style.transform || '';
-                }
-                
-                // Get original transform and add scale
-                const originalTransform = markerElement.dataset.originalTransform;
-                markerElement.style.transform = originalTransform + ' scale(1.5)';
-                markerElement.style.zIndex = '10000';
-                markerElement.style.filter = 'drop-shadow(0 0 12px rgba(59, 130, 246, 0.8))';
-                markerElement.style.transition = 'all 0.3s ease';
-            } else {
-                // Restore original transform
-                const originalTransform = markerElement.dataset.originalTransform || '';
-                markerElement.style.transform = originalTransform;
-                markerElement.style.zIndex = '';
-                markerElement.style.filter = '';
-            }
         }
         
         function showLoading() {
@@ -2471,22 +2441,11 @@
             // Set the float list HTML
             el.floatList.innerHTML = summaryHTML + floatListHTML;
             
-            // Add click and hover handlers after HTML is in DOM
+            // Add click handlers after HTML is in DOM
             el.floatList.querySelectorAll('.float-item').forEach(item => {
-                const floatId = item.dataset.floatId;
-                
-                // Click handler
                 item.addEventListener('click', () => {
+                    const floatId = item.dataset.floatId;
                     selectFloat(floatId, localFloatGroups[floatId]);
-                });
-                
-                // Hover handlers to highlight marker on map
-                item.addEventListener('mouseenter', () => {
-                    highlightMarker(floatId, true);
-                });
-                
-                item.addEventListener('mouseleave', () => {
-                    highlightMarker(floatId, false);
                 });
             });
             
@@ -2523,9 +2482,6 @@
                 marker.addTo(map);
                 marker.on('click', () => selectFloat(id, points));
                 markers.push(marker);
-                
-                // Store marker reference by float ID
-                markerMap[id] = marker;
             });
             
             // Update heatmap if enabled
