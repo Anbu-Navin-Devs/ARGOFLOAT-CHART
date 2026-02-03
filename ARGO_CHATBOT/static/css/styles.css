@@ -270,6 +270,47 @@ body {
     filter: drop-shadow(0 0 8px var(--ocean-glow));
 }
 
+/* Leaflet Zoom Control Repositioning */
+.leaflet-top.leaflet-left {
+    top: 70px !important;
+    left: 20px !important;
+}
+
+.leaflet-control-zoom {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: var(--shadow-md) !important;
+    display: flex;
+    flex-direction: column;
+}
+
+.leaflet-control-zoom a {
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-secondary) !important;
+    font-size: 16px !important;
+    width: 36px !important;
+    height: 36px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-normal) !important;
+}
+
+.leaflet-control-zoom a:first-child {
+    border-bottom: 1px solid var(--border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background: var(--bg-hover) !important;
+    color: var(--accent-primary) !important;
+}
+
+.leaflet-control-zoom a:active {
+    background: var(--bg-active) !important;
+}
+
 /* Map Explorer Button */
 .map-explorer-btn {
     display: flex;
