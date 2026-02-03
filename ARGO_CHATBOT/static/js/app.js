@@ -472,6 +472,32 @@ function updateMapTiles() {
     L.tileLayer(tileUrl, { maxZoom: 19 }).addTo(state.map);
 }
 
+/**
+ * Add temperature color legend to map
+ */
+function addTemperatureLegend() {
+    if (!state.map) return;
+    
+    const legend = L.control({ position: 'bottomleft' });
+    
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'temperature-legend');
+        div.innerHTML = `
+            <div class="legend-title">🌡️ Temperature</div>
+            <div class="legend-gradient"></div>
+            <div class="legend-labels">
+                <span>Cold<br>&lt;15°C</span>
+                <span>Cool<br>15-20°C</span>
+                <span>Warm<br>20-25°C</span>
+                <span>Hot<br>&gt;25°C</span>
+            </div>
+        `;
+        return div;
+    };
+    
+    legend.addTo(state.map);
+}
+
 // ========================================
 // Map Initialization (Enhanced)
 // ========================================
@@ -499,6 +525,9 @@ async function initMap() {
         imperial: false,
         position: 'bottomleft'
     }).addTo(state.map);
+    
+    // Add temperature legend
+    addTemperatureLegend();
     
     // Invalidate size after render
     setTimeout(() => state.map.invalidateSize(), 100);

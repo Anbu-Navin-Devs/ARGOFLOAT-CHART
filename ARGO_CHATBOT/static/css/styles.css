@@ -385,6 +385,63 @@ body {
     box-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* Temperature Legend */
+.temperature-legend {
+    background: var(--bg-panel);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    box-shadow: var(--shadow-md);
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    margin-left: 10px;
+    min-width: 200px;
+}
+
+.temperature-legend .legend-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.temperature-legend .legend-gradient {
+    height: 10px;
+    border-radius: var(--radius-xs);
+    background: linear-gradient(to right, 
+        #22c55e 0%,     /* Green - Cold */
+        #3b82f6 25%,    /* Blue - Cool */
+        #f59e0b 60%,    /* Orange - Warm */
+        #ef4444 100%    /* Red - Hot */
+    );
+    margin-bottom: 8px;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.temperature-legend .legend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--text-muted);
+    gap: 4px;
+}
+
+.temperature-legend .legend-labels span {
+    flex: 1;
+    text-align: center;
+    line-height: 1.3;
+}
+
+.temperature-legend .legend-labels span:first-child {
+    text-align: left;
+}
+
+.temperature-legend .legend-labels span:last-child {
+    text-align: right;
+}
+
 /* Fullscreen Button */
 .map-fullscreen-btn {
     position: absolute;
