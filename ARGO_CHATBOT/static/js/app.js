@@ -6,11 +6,11 @@
 'use strict';
 
 // ========================================
-// DEMO NOTICE POPUP - Only on deployed Render site
+// DEMO POPUP - Legacy code (for future deployments)
 // ========================================
 
 /**
- * Check if running on deployed site (Railway/Render) vs localhost
+ * Check if running on deployed site vs localhost
  */
 function isDeployedSite() {
     const hostname = window.location.hostname;
@@ -28,12 +28,12 @@ function isDeployedSite() {
 }
 
 /**
- * Show demo notice popup - ONLY on deployed site (Railway/Render)
+ * Show demo notice popup - Only on deployed sites
  */
 function showDemoNoticePopup() {
     // Only show on deployed site, NOT on localhost
     if (!isDeployedSite()) {
-        console.log('📍 Running locally - skipping demo notice popup');
+        console.log('📍 Running locally - popup disabled');
         return;
     }
     
