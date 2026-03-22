@@ -28,10 +28,6 @@
 <br/>
 
 <!-- CTA Buttons -->
-<a href="https://web-production-a98d8.up.railway.app">
-  <img src="https://img.shields.io/badge/🚀_LIVE_DEMO-TRY_NOW-00B4D8?style=for-the-badge&labelColor=0077B6&logoColor=white" alt="Live Demo"/>
-</a>
-&nbsp;&nbsp;
 <a href="#-quick-start">
   <img src="https://img.shields.io/badge/⚡_GET_STARTED-5_MIN_SETUP-22c55e?style=for-the-badge&labelColor=16a34a" alt="Quick Start"/>
 </a>
@@ -134,21 +130,13 @@
   <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 </p>
 
-## 🚀 Live Demo
+## 🚀 Getting Started Locally
 
 <div align="center">
 
-| Page | Description | Link |
-|:----:|:------------|:----:|
-| 💬 **Chat** | AI-powered Q&A interface | [**Open Chat →**](https://web-production-a98d8.up.railway.app) |
-| 🗺️ **Map** | Interactive float explorer | [**Open Map →**](https://web-production-a98d8.up.railway.app/map) |
-| 📊 **Dashboard** | Data visualization hub | [**Open Dashboard →**](https://web-production-a98d8.up.railway.app/dashboard) |
+**Local setup gives you access to the FULL platform with 46M+ global ocean records!**
 
-<br/>
-
-> **📍 Demo Coverage:** India Ocean Region (0°-28°N, 55°-100°E) • **2.6M Records** • Jan 2025 - Jan 2026
->
-> *For global coverage with 46M+ records, run locally!*
+Follow the [Quick Start](#-quick-start) section below to get up and running in 5 minutes.
 
 </div>
 
@@ -179,7 +167,10 @@ cd ARGOFLOAT-CHART
 python local_setup.py
 
 # 3️⃣ Follow the prompts — done! 🎉
+# Opens automatically at: http://localhost:5000
 ```
+
+> **That's it!** The `local_setup.py` wizard handles everything: dependencies, database, environment variables, and launches the app.
 
 <details>
 <summary>📋 <b>What the setup wizard does</b></summary>
@@ -188,11 +179,11 @@ python local_setup.py
 | Step | Action |
 |:----:|:-------|
 | 1 | ✅ Verifies Python & pip installation |
-| 2 | ✅ Installs all dependencies |
-| 3 | ✅ Creates your `.env` configuration |
-| 4 | ✅ Removes deployment-only files |
-| 5 | ✅ Launches the application |
-| 6 | ✅ Opens browser automatically |
+| 2 | ✅ Installs all required dependencies |
+| 3 | ✅ Creates your `.env` configuration file |
+| 4 | ✅ Sets up PostgreSQL database locally |
+| 5 | ✅ Launches the Flask application |
+| 6 | ✅ Opens browser to `http://localhost:5000` |
 
 </details>
 
@@ -267,12 +258,11 @@ GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxx
 
 | Layer | Technologies |
 |:-----:|:-------------|
-| **Backend** | ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white) ![Gunicorn](https://img.shields.io/badge/Gunicorn-499848?style=flat-square&logo=gunicorn&logoColor=white) |
+| **Backend** | ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white) |
 | **AI** | ![Groq](https://img.shields.io/badge/Groq-F55036?style=flat-square&logo=groq&logoColor=white) Llama 3.3 70B Versatile |
-| **Database** | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat-square&logo=postgresql&logoColor=white) ![Neon](https://img.shields.io/badge/Neon-00E5CC?style=flat-square&logo=neon&logoColor=black) |
+| **Database** | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat-square&logo=postgresql&logoColor=white) |
 | **Frontend** | ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black) |
 | **Visualization** | ![Chart.js](https://img.shields.io/badge/Chart.js-FF6384?style=flat-square&logo=chartdotjs&logoColor=white) ![Leaflet](https://img.shields.io/badge/Leaflet-199900?style=flat-square&logo=leaflet&logoColor=white) |
-| **Deployment** | ![Railway](https://img.shields.io/badge/Railway-0B0D0E?style=flat-square&logo=railway&logoColor=white) |
 
 </div>
 
@@ -282,18 +272,17 @@ GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxx
   <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 </p>
 
-## 🌐 Live vs Local
+## 💻 What You Get Locally
 
 <div align="center">
 
-| Feature | 🌐 Live Demo | 💻 Local Setup |
-|:--------|:------------:|:--------------:|
-| **Access** | [Click to open](https://web-production-a98d8.up.railway.app) | `localhost:5000` |
-| **Records** | 2.6 Million | **46+ Million** |
-| **Coverage** | India Region | **Global** |
-| **Data Manager** | ❌ | ✅ |
-| **Setup Time** | Instant | ~5 minutes |
-| **Best For** | Quick demo | Research & analysis |
+| Feature | Description |
+|:--------|:------------|
+| **📊 Full Dataset** | 46+ Million ocean records |
+| **🌍 Global Coverage** | Complete worldwide ARGO data |
+| **📥 Data Manager** | Download & manage your own datasets |
+| **⚡ Fast Queries** | Sub-second response times |
+| **🔧 Full Control** | Modify code, add features, experiment |
 
 </div>
 
