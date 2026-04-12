@@ -45,6 +45,10 @@
 
 ---
 
+<p align="center">
+  <img src="assets/dashboard.png" width="100%" alt="FloatChart Dashboard Preview" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+</p>
+
 ## 🎯 What is FloatChart?
 
 **FloatChart** is the **Open Intelligence Layer for ARGO Ocean Data** — a free, self-hostable platform that turns the world's largest ocean observation network into an instantly queryable intelligence layer. Ask questions in plain English and receive charts, maps, and data exports in seconds.
@@ -65,25 +69,9 @@
 
 ## 🏗️ System Architecture
 
-```
-  4,000+ ARGO Floats     ERDDAP Servers       User / AI Agent
-         │                     │                     │
-         └──────────┬──────────┘                     │
-                    ▼                                 ▼
-     ┌──────────────────────────────────────────────────────────────┐
-     │              FloatChart Open Intelligence Layer               │
-     │                                                              │
-     │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-     │   │ Groq LLaMA   │  │ SQL Builder  │  │ PostgreSQL       │  │
-     │   │ 3.3 70B      │  │ (7 types)    │  │ 46M Records      │  │
-     │   └──────────────┘  └──────────────┘  └──────────────────┘  │
-     │                     ⚠️ SQL Sanitizer (safety gate) ⚠️         │
-     └─────────────────────────┬────────────────────────────────────┘
-                               ▼
-              ┌─────── REST API /api/v1/query ───────┐
-              │                                      │
-     Chart.js Visualizations     JSON (Agent-Ready)     CSV Export
-```
+<p align="center">
+  <img src="assets/architecture.png" width="100%" alt="FloatChart System Architecture" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+</p>
 
 ---
 
