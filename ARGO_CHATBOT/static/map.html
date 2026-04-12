@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Map - FloatChart</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/premium.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
@@ -14,7 +15,327 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <style>
-        /* Interactive Map Page Styles */
+        /* === PREMIUM NEON OVERRIDES FOR MAP === */
+        .map-page {
+            background: linear-gradient(160deg, #020510 0%, #040c20 45%, #020814 100%) !important;
+        }
+
+        .data-panel {
+            background: rgba(4, 10, 26, 0.88) !important;
+            border-left: 1px solid rgba(0, 212, 255, 0.15) !important;
+            backdrop-filter: blur(32px) !important;
+        }
+
+        .panel-header {
+            background: rgba(2, 6, 18, 0.9) !important;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.15) !important;
+            position: relative;
+        }
+
+        .panel-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #00d4ff, #a855f7, transparent);
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+        }
+
+        .panel-title {
+            background: linear-gradient(135deg, #00d4ff, #e2f4ff) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 700 !important;
+        }
+
+        .float-badge {
+            background: linear-gradient(135deg, #00d4ff, #a855f7) !important;
+            box-shadow: 0 0 14px rgba(0, 212, 255, 0.4) !important;
+            border-radius: 100px !important;
+        }
+
+        .info-item {
+            background: rgba(0, 12, 32, 0.8) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 12px !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .info-item:hover {
+            border-color: rgba(0, 212, 255, 0.3) !important;
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.1) !important;
+        }
+
+        .info-value {
+            background: linear-gradient(135deg, #00d4ff, #e2f4ff) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 700 !important;
+        }
+
+        .info-label {
+            color: rgba(0, 170, 210, 0.6) !important;
+            letter-spacing: 0.8px !important;
+        }
+
+        .traj-stat {
+            background: rgba(0, 12, 32, 0.8) !important;
+            border-radius: 12px !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+        }
+
+        .traj-stat-value {
+            background: linear-gradient(135deg, #00d4ff, #a855f7) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 800 !important;
+        }
+
+        .back-btn {
+            background: rgba(4, 10, 26, 0.88) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            color: rgba(0, 180, 220, 0.8) !important;
+            border-radius: 12px !important;
+            backdrop-filter: blur(16px) !important;
+            font-weight: 600 !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .back-btn:hover {
+            border-color: #00d4ff !important;
+            color: #00d4ff !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3) !important;
+        }
+
+        .map-instructions {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(168, 85, 247, 0.12)) !important;
+            border: 1px solid rgba(0, 212, 255, 0.25) !important;
+            border-radius: 12px !important;
+            backdrop-filter: blur(16px) !important;
+            color: rgba(200, 240, 255, 0.9) !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1) !important;
+        }
+
+        .float-item {
+            background: rgba(0, 12, 32, 0.75) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 12px !important;
+            transition: all 0.25s ease !important;
+        }
+
+        .float-item:hover {
+            border-color: rgba(0, 212, 255, 0.4) !important;
+            background: rgba(0, 212, 255, 0.06) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4),
+                        0 0 20px rgba(0, 212, 255, 0.12) !important;
+            transform: scale(1.03) !important;
+        }
+
+        .float-item.selected {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(168, 85, 247, 0.1)) !important;
+            border-color: rgba(0, 212, 255, 0.4) !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.15) !important;
+        }
+
+        .float-item-id {
+            background: linear-gradient(135deg, #00d4ff, #e2f4ff) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 700 !important;
+        }
+
+        .clicked-location {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(168, 85, 247, 0.08)) !important;
+            border: 1px solid rgba(0, 212, 255, 0.3) !important;
+            border-radius: 14px !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1) !important;
+        }
+
+        .location-coords {
+            background: linear-gradient(135deg, #00d4ff, #e2f4ff) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 700 !important;
+        }
+
+        .date-range-filter {
+            background: rgba(0, 12, 32, 0.75) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 14px !important;
+        }
+
+        .date-inputs input[type="month"] {
+            background: rgba(0, 8, 22, 0.9) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            border-radius: 10px !important;
+            color: rgba(200, 230, 255, 0.9) !important;
+        }
+
+        .date-inputs input[type="month"]:focus {
+            border-color: #00d4ff !important;
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2) !important;
+        }
+
+        .date-range-info {
+            background: rgba(0, 212, 255, 0.08) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            color: rgba(0, 180, 220, 0.8) !important;
+            border-radius: 10px !important;
+        }
+
+        .action-button {
+            background: rgba(0, 12, 32, 0.8) !important;
+            border: 1px solid rgba(0, 212, 255, 0.15) !important;
+            color: rgba(0, 180, 220, 0.8) !important;
+            border-radius: 12px !important;
+            transition: all 0.2s ease !important;
+            font-weight: 600 !important;
+        }
+
+        .action-button:hover {
+            border-color: #00d4ff !important;
+            color: #00d4ff !important;
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.25) !important;
+        }
+
+        .action-button.primary {
+            background: linear-gradient(135deg, #00d4ff, #a855f7) !important;
+            border: none !important;
+            color: white !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.4) !important;
+        }
+
+        .action-button.primary:hover {
+            box-shadow: 0 0 35px rgba(0, 212, 255, 0.6) !important;
+            transform: translateY(-2px) !important;
+        }
+
+        .map-status {
+            background: rgba(4, 10, 26, 0.88) !important;
+            border: 1px solid rgba(0, 212, 255, 0.15) !important;
+            border-radius: 12px !important;
+            backdrop-filter: blur(16px) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+            color: rgba(0, 180, 220, 0.7) !important;
+        }
+
+        .spinner {
+            border: 2px solid rgba(0, 212, 255, 0.1) !important;
+            border-top-color: #00d4ff !important;
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.3) !important;
+        }
+
+        .summary-stat {
+            background: rgba(0, 12, 32, 0.8) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 12px !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .summary-stat-value {
+            background: linear-gradient(135deg, #00d4ff, #a855f7) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 800 !important;
+        }
+
+        .traj-date-modal-content {
+            background: rgba(4, 10, 26, 0.97) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            border-radius: 18px !important;
+            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.7),
+                        0 0 40px rgba(0, 212, 255, 0.08) !important;
+            backdrop-filter: blur(40px) !important;
+        }
+
+        .modal-btn-confirm {
+            background: linear-gradient(135deg, #00d4ff, #a855f7) !important;
+            border: none !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.4) !important;
+        }
+
+        .profile-chart {
+            background: rgba(0, 8, 22, 0.85) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 14px !important;
+        }
+
+        .chart-type-tab {
+            background: rgba(0, 12, 32, 0.8) !important;
+            border: 1px solid rgba(0, 212, 255, 0.15) !important;
+            border-radius: 8px !important;
+            color: rgba(0, 170, 210, 0.7) !important;
+            font-weight: 500 !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .chart-type-tab:hover {
+            background: rgba(0, 212, 255, 0.1) !important;
+            color: #00d4ff !important;
+            border-color: rgba(0, 212, 255, 0.3) !important;
+        }
+
+        .chart-type-tab.active {
+            background: linear-gradient(135deg, #00d4ff, #a855f7) !important;
+            border: none !important;
+            color: white !important;
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.4) !important;
+        }
+
+        .section-title {
+            background: linear-gradient(135deg, #00d4ff, #e2f4ff) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 700 !important;
+        }
+
+        .panel-resize-handle:hover,
+        .panel-resize-handle.active {
+            background: linear-gradient(180deg, #00d4ff, #a855f7) !important;
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.4) !important;
+        }
+
+        /* Leaflet dark filter for map tiles */
+        .leaflet-tile-pane { filter: saturate(0.7) brightness(0.7) hue-rotate(8deg); }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(4, 12, 30, 0.96) !important;
+            border: 1px solid rgba(0, 212, 255, 0.25) !important;
+            color: #e2f4ff !important;
+            border-radius: 14px !important;
+            backdrop-filter: blur(20px) !important;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.2) !important;
+        }
+
+        .leaflet-popup-tip { background: rgba(4, 12, 30, 0.96) !important; }
+
+        .popup-title { color: #00d4ff !important; }
+
+        .leaflet-control-zoom {
+            background: rgba(4, 12, 30, 0.88) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            border-radius: 12px !important;
+            backdrop-filter: blur(16px) !important;
+        }
+
+        .leaflet-control-zoom a { color: rgba(0, 180, 220, 0.8) !important; }
+        .leaflet-control-zoom a:hover { background: rgba(0, 212, 255, 0.1) !important; color: #00d4ff !important; }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 5, 15, 0.5); }
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #00d4ff, #a855f7);
+            border-radius: 3px;
+        }
+        /* === END MAP OVERRIDES === */
+
         .map-page {
             display: flex;
             height: 100vh;

@@ -20,8 +20,213 @@
     
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Chart.js Neon Defaults -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Chart !== 'undefined') {
+                Chart.defaults.color = 'rgba(150, 210, 255, 0.7)';
+                Chart.defaults.borderColor = 'rgba(0, 212, 255, 0.07)';
+                Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(4, 10, 28, 0.96)';
+                Chart.defaults.plugins.tooltip.borderColor = 'rgba(0, 212, 255, 0.3)';
+                Chart.defaults.plugins.tooltip.borderWidth = 1;
+                Chart.defaults.plugins.tooltip.titleColor = '#00d4ff';
+                Chart.defaults.plugins.tooltip.bodyColor = 'rgba(200, 230, 255, 0.9)';
+                Chart.defaults.plugins.tooltip.padding = 14;
+                Chart.defaults.plugins.tooltip.cornerRadius = 12;
+                Chart.defaults.scale.grid.color = 'rgba(0, 212, 255, 0.06)';
+                Chart.defaults.scale.ticks.color = 'rgba(0, 180, 220, 0.6)';
+            }
+        });
+    </script>
     
     <style>
+        /* === PREMIUM NEON OVERRIDES FOR DASHBOARD === */
+        :root {
+            --neon-blue:   #00d4ff;
+            --neon-violet: #a855f7;
+            --neon-cyan:   #06fffa;
+            --neon-green:  #22d3ee;
+            --glass-border: rgba(0, 212, 255, 0.18);
+        }
+
+        body {
+            background: radial-gradient(ellipse at 15% 20%, rgba(0, 90, 180, 0.15) 0%, transparent 50%),
+                        radial-gradient(ellipse at 85% 80%, rgba(120, 40, 200, 0.12) 0%, transparent 45%),
+                        linear-gradient(160deg, #020510 0%, #040c20 45%, #020814 100%) !important;
+        }
+
+        .dashboard-header {
+            background: rgba(4, 8, 22, 0.92) !important;
+            border-bottom: 1px solid rgba(0, 212, 255, 0.15) !important;
+            backdrop-filter: blur(32px) !important;
+            box-shadow: 0 1px 0 rgba(0, 212, 255, 0.15),
+                        0 4px 24px rgba(0, 0, 0, 0.4) !important;
+            position: relative;
+        }
+
+        .dashboard-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--neon-blue), var(--neon-violet), transparent);
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+        }
+
+        .dashboard-logo span {
+            background: linear-gradient(135deg, #00d4ff 0%, #ffffff 50%, #a855f7 100%) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+        }
+
+        .nav-link {
+            color: rgba(0, 180, 220, 0.7) !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .nav-link:hover {
+            background: rgba(0, 212, 255, 0.1) !important;
+            color: var(--neon-blue) !important;
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.2) !important;
+        }
+
+        .nav-link.active {
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-violet)) !important;
+            color: white !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.4) !important;
+        }
+
+        .stat-card {
+            background: rgba(4, 12, 30, 0.85) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 20px !important;
+            backdrop-filter: blur(20px) !important;
+            transition: all 0.3s ease !important;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-6px) !important;
+            border-color: rgba(0, 212, 255, 0.35) !important;
+            box-shadow: 0 12px 50px rgba(0, 0, 0, 0.5),
+                        0 0 40px rgba(0, 212, 255, 0.12) !important;
+        }
+
+        .stat-card.temp::before { background: linear-gradient(90deg, #ef4444, #f97316) !important; box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+        .stat-card.sal::before  { background: linear-gradient(90deg, #00d4ff, #06fffa) !important; box-shadow: 0 0 12px rgba(0, 212, 255, 0.5); }
+        .stat-card.floats::before { background: linear-gradient(90deg, #22d3ee, #10b981) !important; box-shadow: 0 0 12px rgba(34, 211, 238, 0.4); }
+        .stat-card.depth::before { background: linear-gradient(90deg, #a855f7, #ec4899) !important; box-shadow: 0 0 12px rgba(168, 85, 247, 0.4); }
+
+        .stat-value {
+            font-size: 2.4rem !important;
+            font-weight: 800 !important;
+            background: linear-gradient(135deg, #00d4ff, #ffffff, #a855f7) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+        }
+
+        .stat-label {
+            color: rgba(0, 180, 220, 0.7) !important;
+            letter-spacing: 1.2px !important;
+        }
+
+        .page-title {
+            font-size: 2.8rem !important;
+            background: linear-gradient(135deg, #00d4ff 0%, #ffffff 50%, #a855f7 100%) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+        }
+
+        .page-subtitle {
+            color: rgba(0, 180, 220, 0.7) !important;
+        }
+
+        .chart-card {
+            background: rgba(4, 12, 30, 0.85) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 20px !important;
+            backdrop-filter: blur(20px) !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .chart-card:hover {
+            border-color: rgba(0, 212, 255, 0.28) !important;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5),
+                        0 0 30px rgba(0, 212, 255, 0.08) !important;
+        }
+
+        .chart-title {
+            background: linear-gradient(135deg, #00d4ff, #e2f4ff) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            background-clip: text !important;
+            font-weight: 700 !important;
+        }
+
+        .summary-section {
+            background: rgba(4, 12, 30, 0.85) !important;
+            border: 1px solid rgba(0, 212, 255, 0.1) !important;
+            border-radius: 20px !important;
+            backdrop-filter: blur(20px) !important;
+        }
+
+        .summary-item {
+            background: rgba(0, 15, 35, 0.7) !important;
+            border: 1px solid rgba(0, 212, 255, 0.08) !important;
+            border-radius: 14px !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .summary-item:hover {
+            border-color: rgba(0, 212, 255, 0.3) !important;
+            background: rgba(0, 212, 255, 0.06) !important;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1) !important;
+            transform: translateX(6px) !important;
+        }
+
+        .region-selector select {
+            background: rgba(0, 15, 35, 0.85) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            border-radius: 12px !important;
+            color: rgba(200, 230, 255, 0.9) !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .region-selector select:focus {
+            border-color: var(--neon-blue) !important;
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.2) !important;
+            outline: none !important;
+        }
+
+        .dashboard-footer {
+            background: rgba(2, 6, 16, 0.9) !important;
+            border-top: 1px solid rgba(0, 212, 255, 0.1) !important;
+        }
+
+        .sparkline-modal-content {
+            background: rgba(4, 12, 30, 0.97) !important;
+            border: 1px solid rgba(0, 212, 255, 0.2) !important;
+            border-radius: 24px !important;
+            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.7),
+                        0 0 60px rgba(0, 212, 255, 0.1) !important;
+            backdrop-filter: blur(40px) !important;
+        }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 5, 15, 0.5) !important; }
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--neon-blue), var(--neon-violet)) !important;
+            border-radius: 3px;
+        }
+        /* === END PREMIUM OVERRIDES === */
+
         /* ============================================
            CSS Variables - Dark/Light Theme
            ============================================ */

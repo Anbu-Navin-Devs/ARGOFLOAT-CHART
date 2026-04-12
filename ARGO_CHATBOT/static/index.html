@@ -19,16 +19,40 @@
     
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/premium.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Chart.js Neon Defaults -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Chart !== 'undefined') {
+                Chart.defaults.color = 'rgba(150, 210, 255, 0.7)';
+                Chart.defaults.borderColor = 'rgba(0, 212, 255, 0.08)';
+                Chart.defaults.font.family = "'Inter', sans-serif";
+                Chart.defaults.font.size = 12;
+                Chart.defaults.plugins.legend.labels.color = 'rgba(150, 210, 255, 0.85)';
+                Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(4, 10, 28, 0.95)';
+                Chart.defaults.plugins.tooltip.borderColor = 'rgba(0, 212, 255, 0.3)';
+                Chart.defaults.plugins.tooltip.borderWidth = 1;
+                Chart.defaults.plugins.tooltip.titleColor = '#00d4ff';
+                Chart.defaults.plugins.tooltip.bodyColor = 'rgba(200, 230, 255, 0.9)';
+                Chart.defaults.plugins.tooltip.padding = 12;
+                Chart.defaults.plugins.tooltip.cornerRadius = 12;
+                Chart.defaults.plugins.tooltip.boxShadow = '0 0 20px rgba(0,212,255,0.2)';
+                Chart.defaults.scale.grid.color = 'rgba(0, 212, 255, 0.06)';
+                Chart.defaults.scale.ticks.color = 'rgba(0, 180, 220, 0.6)';
+            }
+        });
+    </script>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
