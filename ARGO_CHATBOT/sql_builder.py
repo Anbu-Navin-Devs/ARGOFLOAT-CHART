@@ -1,6 +1,36 @@
 from datetime import datetime, timedelta
 import re
 
+# ── Safety layer ─────────────────────────────────────────────────────────────
+# Import the SQL Sanitizer to validate every generated query before returning.
+# This enforces a strict read-only policy on all AI-generated SQL.
+try:
+    from sql_sanitizer import SQLSanitizer
+    _SANITIZER_AVAILABLE = True
+except ImportError:
+    _SANITIZER_AVAILABLE = False
+
+
+def _apply_safety_check(sql: str) -> str:
+    """
+    Pass the final SQL through the safety sanitizer.
+
+    Returns the SQL unchanged if it is safe.
+    Raises ValueError with a descriptive message if any safety check fails.
+    This is the last gate before the query leaves this module.
+    """
+    if not _SANITIZER_AVAILABLE:
+        return sql  # Graceful degradation if sanitizer not installed
+    result = SQLSanitizer.validate(sql)
+    if not result["safe"]:
+        raise ValueError(
+            f"SQL Safety Violation — query blocked by FloatChart sanitizer.\n"
+            f"Reason: {result['reason']}\n"
+            f"Checks: {result['checks']}"
+        )
+    return sql
+
+
 def build_query(intent: dict, db_context: dict, engine=None) -> str:
     query_type = intent.get("query_type")
     existing_cols = set()
@@ -10,14 +40,28 @@ def build_query(intent: dict, db_context: dict, engine=None) -> str:
         except Exception:
             existing_cols = set()
 
-    if query_type == "Proximity": return _build_proximity_query(intent, db_context)
-    elif query_type == "Time-Series": return _build_timeseries_query(intent, db_context, existing_cols)
-    elif query_type == "Statistic": return _build_statistic_query(intent, db_context, existing_cols)
-    elif query_type == "Profile": return _build_profile_query(intent, existing_cols)
-    elif query_type == "Trajectory": return _build_trajectory_query(intent, db_context, existing_cols)
-    elif query_type == "Scatter": return _build_scatter_query(intent, db_context, existing_cols)
-    elif query_type == "Path": return _build_path_query(intent, existing_cols)
-    else: return _build_general_query(intent, db_context)
+    # Route to the appropriate query builder, then enforce safety on the result.
+    if query_type == "Proximity":
+        sql = _build_proximity_query(intent, db_context)
+    elif query_type == "Time-Series":
+        sql = _build_timeseries_query(intent, db_context, existing_cols)
+    elif query_type == "Statistic":
+        sql = _build_statistic_query(intent, db_context, existing_cols)
+    elif query_type == "Profile":
+        sql = _build_profile_query(intent, existing_cols)
+    elif query_type == "Trajectory":
+        sql = _build_trajectory_query(intent, db_context, existing_cols)
+    elif query_type == "Scatter":
+        sql = _build_scatter_query(intent, db_context, existing_cols)
+    elif query_type == "Path":
+        sql = _build_path_query(intent, existing_cols)
+    else:
+        sql = _build_general_query(intent, db_context)
+
+    # ── SAFETY GATE ─────────────────────────────────────────────────────────
+    # Every query passes through the SQLSanitizer before leaving this module.
+    # This prevents destructive or unexpected queries from reaching the database.
+    return _apply_safety_check(sql)
 
 def _build_path_query(intent: dict, existing_cols=None) -> str:
     float_id = intent.get("float_id")
