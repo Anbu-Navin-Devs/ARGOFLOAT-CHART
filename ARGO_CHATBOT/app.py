@@ -783,14 +783,7 @@ def api_v1_query():
     Local deployments: no limit enforced.
     Cloud deployments: recommended 60 req/min per IP.
     """
-    if not get_intelligent_answer:
-        return jsonify({
-            "success": False,
-            "error": "AI module (brain.py) is not available.",
-            "api_version": "v1",
-        }), 500
-
-    # ── Parse input ──────────────────────────────────────────────────────────
+    # ── Parse input (validate BEFORE checking AI availability) ─────────────
     if request.method == 'GET':
         user_query = request.args.get('query', '') or request.args.get('question', '')
         max_rows   = int(request.args.get('max_rows', 500))
@@ -805,6 +798,13 @@ def api_v1_query():
             "error":   "Missing required field: 'query' (or 'question').",
             "api_version": "v1",
         }), 400
+
+    if not get_intelligent_answer:
+        return jsonify({
+            "success": False,
+            "error": "AI module (brain.py) is not available.",
+            "api_version": "v1",
+        }), 500
 
     # Enforce hard cap
     max_rows = min(max_rows, 2000)
@@ -855,17 +855,36 @@ def api_v1_query():
 @app.route('/api/v1/tools', methods=['GET'])
 def api_v1_tools():
     """
-    Return the machine-readable Agent Tool Manifest.
+    Return the MCP-compliant Agent Tool Manifest.
 
-    AI agents and LLM orchestrators can fetch this endpoint to discover
-    which tools FloatChart exposes and their parameter schemas — enabling
-    zero-configuration agent integration.
+    AI agents and LLM orchestrators (e.g., Claude Desktop, MCP SDK clients)
+    can fetch this endpoint to discover which tools FloatChart exposes and
+    their parameter schemas — enabling zero-configuration agent integration.
+
+    The response conforms to the Anthropic Model Context Protocol (MCP)
+    ``tools/list`` schema: each tool has a ``name``, ``description``, and
+    an ``inputSchema`` (JSON Schema draft-07 object).
+
+    Response (200):
+        {
+            "tools": [
+                {
+                    "name": "query_ocean_data",
+                    "description": "...",
+                    "inputSchema": { "type": "object", "properties": {...}, "required": [...] }
+                },
+                ...
+            ]
+        }
     """
     try:
-        from agent_tools import TOOL_MANIFEST
-        return jsonify(TOOL_MANIFEST), 200
+        from agent_tools import get_tool_manifest
+        return jsonify(get_tool_manifest()), 200
     except ImportError:
-        return jsonify({"error": "agent_tools module not available"}), 500
+        return jsonify({
+            "success": False,
+            "error": "agent_tools module not available.",
+        }), 500
 
 
 @app.route('/api/v1/validate-sql', methods=['POST'])

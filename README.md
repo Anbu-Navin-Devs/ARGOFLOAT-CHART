@@ -65,6 +65,8 @@
 | **Privacy-First** | No telemetry, no tracking, no raw GPS to the cloud |
 | **Safety-First** | SQL Sanitizer prevents any destructive query from executing |
 
+> **🚀 Roadmap Note:** FloatChart currently utilises local/open-weight models for basic routing, but we are actively migrating our complex, multi-step oceanographic reasoning pipeline to the **Claude 3.5/4.x family**. We are building this to be a premier MCP (Model Context Protocol) server for the Claude ecosystem.
+
 ---
 
 ## 🏗️ System Architecture
@@ -205,15 +207,15 @@ for row in result["data"]:
     print(row)
 ```
 
-### Agent Tool Manifest
+### 🔌 Model Context Protocol (MCP) & Agent Integration
 
-AI agents (Claude, GPT, Gemini) can auto-discover FloatChart's capabilities:
+FloatChart is designed as a native tool for the agentic ecosystem. AI agents (like Claude via the **Model Context Protocol**) can auto-discover our capabilities to query ocean data directly from their environments.
 
 ```bash
 curl http://localhost:5000/api/v1/tools
 ```
 
-Returns a JSON schema describing all callable tools with parameter signatures — enabling zero-configuration agent integration via `agent_tools.py`.
+Returns a fully compliant JSON schema describing all callable tools, enabling zero-configuration integration for autonomous researchers and terminal agents.
 
 ### Available Agent Tools (`agent_tools.py`)
 
@@ -232,9 +234,9 @@ Returns a JSON schema describing all callable tools with parameter signatures �
   <img src="https://user-images.githubusercontent.com/73097560/115834477-dbab4500-a447-11eb-908a-139a6edaec5c.gif" width="100%">
 </p>
 
-## 🛡️ AI Safety & SQL Sanitizer
+## 🛡️ AI Alignment & Governance Layer
 
-FloatChart includes a first-class **SQL Safety Layer** (`sql_sanitizer.py`) that validates every AI-generated query before it reaches the database. This enforces a strict **read-only contract** — the AI can query data, never modify it.
+FloatChart implements strict **AI alignment protocols** via a custom SQL Safety Layer (`sql_sanitizer.py`). This validates every LLM-generated query before it reaches the database, enforcing a strict **read-only contract**. This ensures that autonomous agents remain helpful and harmless, completely preventing prompt-injection-based database corruption.
 
 ### Safety Checks (7 Layers)
 

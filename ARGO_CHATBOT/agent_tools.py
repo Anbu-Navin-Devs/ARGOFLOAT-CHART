@@ -395,60 +395,232 @@ def _build_proximity_question(location_name, latitude, longitude, radius_km, lim
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TOOL MANIFEST — machine-readable schema for LLM tool registration
+# MCP TOOL MANIFEST — Model Context Protocol compliant tool discovery
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# This manifest conforms to the Anthropic Model Context Protocol (MCP)
+# specification for the `tools/list` response.  Each tool is described with:
+#
+#   • name         – Unique, snake_case tool identifier.
+#   • description  – Human-readable explanation for the LLM.
+#   • inputSchema  – A JSON Schema (draft-07) object describing accepted
+#                    parameters, including `type`, `properties`, `required`,
+#                    and optional `default` values.
+#
+# An MCP-compatible client (e.g., Claude Desktop, any MCP SDK consumer)
+# can fetch GET /api/v1/tools to discover these tools and autonomously
+# query ARGO float data without any manual configuration.
 # ─────────────────────────────────────────────────────────────────────────────
 
-TOOL_MANIFEST = {
-    "floatchart_tools": [
+
+def get_tool_manifest() -> dict:
+    """
+    Return the MCP-compliant tool manifest for FloatChart.
+
+    This function is the single source of truth for tool discovery by AI
+    agents.  It follows the Anthropic Model Context Protocol (MCP) schema
+    so that Claude — and any other MCP-compatible orchestrator — can
+    autonomously call FloatChart tools to query ARGO ocean float data.
+
+    The returned dict mirrors the ``tools/list`` response shape defined by
+    the MCP specification (2025-03-26):
+
         {
-            "name": "query_ocean_data",
-            "description": "Ask a natural-language question about ARGO ocean float data. Returns structured JSON with data, chart type, and AI summary.",
-            "parameters": {
-                "question": {"type": "string", "required": True,
-                             "description": "Plain-English question about ocean data."},
-                "max_rows":  {"type": "integer", "default": 500,
-                             "description": "Maximum rows to return (hard cap)."},
+            "tools": [
+                {
+                    "name": "...",
+                    "description": "...",
+                    "inputSchema": {          # JSON Schema (draft-07)
+                        "type": "object",
+                        "properties": { ... },
+                        "required": [ ... ]
+                    }
+                },
+                ...
+            ]
+        }
+
+    Returns:
+        dict: A JSON-serializable dictionary with a single key ``"tools"``
+              containing a list of MCP tool definitions.
+    """
+    return {
+        "tools": [
+            # ── Primary query tool ──────────────────────────────────────
+            {
+                "name": "query_ocean_data",
+                "description": (
+                    "Ask a natural-language question about ARGO ocean float "
+                    "data. Converts the question into safe, read-only SQL, "
+                    "executes it against the PostgreSQL/CockroachDB database, "
+                    "and returns structured JSON with tabular data, an AI-"
+                    "generated English summary, suggested chart type, and "
+                    "the executed SQL for transparency."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                            "description": (
+                                "Plain-English question about ocean data. "
+                                "Examples: 'Show average temperature in Bay "
+                                "of Bengal for 2024', 'Find the 5 floats "
+                                "nearest to Chennai', 'Salinity trend in "
+                                "Arabian Sea this year'."
+                            ),
+                        },
+                        "max_rows": {
+                            "type": "integer",
+                            "description": "Maximum number of rows to return (hard cap). Default 500, max 2000.",
+                            "default": 500,
+                        },
+                    },
+                    "required": ["question"],
+                },
             },
-        },
-        {
-            "name": "get_floats_near_location",
-            "description": "Find the nearest ARGO floats to a named location or coordinates.",
-            "parameters": {
-                "location_name": {"type": "string",  "required": False},
-                "latitude":      {"type": "number",  "required": False},
-                "longitude":     {"type": "number",  "required": False},
-                "radius_km":     {"type": "number",  "default": 500},
-                "limit":         {"type": "integer", "default": 10},
+            # ── SQL safety validator ────────────────────────────────────
+            {
+                "name": "validate_sql_safety",
+                "description": (
+                    "Run the FloatChart SQL Sanitizer on a raw SQL string "
+                    "to determine if it is safe to execute. Returns a "
+                    "verdict (safe/blocked) with the specific rule violated, "
+                    "if any. Only SELECT and CTE queries are allowed; all "
+                    "DML/DDL operations are rejected."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sql_query": {
+                            "type": "string",
+                            "description": "The raw SQL query string to validate for safety.",
+                        },
+                    },
+                    "required": ["sql_query"],
+                },
             },
-        },
-        {
-            "name": "get_temperature_trend",
-            "description": "Get a daily temperature time-series for an ocean region.",
-            "parameters": {
-                "location_name":   {"type": "string",  "required": True},
-                "year":            {"type": "integer", "required": False},
-                "time_constraint": {"type": "string",  "required": False},
+            # ── Proximity search ────────────────────────────────────────
+            {
+                "name": "get_floats_near_location",
+                "description": (
+                    "Find the nearest ARGO floats to a geographic point or "
+                    "named location. Returns float positions, timestamps, "
+                    "and distance to the query point."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "location_name": {
+                            "type": "string",
+                            "description": "Named location, e.g. 'bay of bengal', 'chennai', 'mumbai'.",
+                        },
+                        "latitude": {
+                            "type": "number",
+                            "description": "Decimal degrees (-90 to 90). Overrides location_name if provided.",
+                        },
+                        "longitude": {
+                            "type": "number",
+                            "description": "Decimal degrees (-180 to 180). Overrides location_name if provided.",
+                        },
+                        "radius_km": {
+                            "type": "number",
+                            "description": "Search radius in kilometres.",
+                            "default": 500,
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of floats to return.",
+                            "default": 10,
+                        },
+                    },
+                    "required": [],
+                },
             },
-        },
-        {
-            "name": "get_depth_profile",
-            "description": "Retrieve the latest vertical depth profile for a specific ARGO float.",
-            "parameters": {
-                "float_id": {"type": "integer", "required": True,
-                             "description": "7-digit WMO float ID, e.g. 2902115"},
+            # ── Temperature trend ───────────────────────────────────────
+            {
+                "name": "get_temperature_trend",
+                "description": (
+                    "Retrieve a daily average temperature time-series for a "
+                    "named ocean region. Returns data suitable for line charts."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "location_name": {
+                            "type": "string",
+                            "description": "Named region, e.g. 'bay of bengal', 'arabian sea'.",
+                        },
+                        "year": {
+                            "type": "integer",
+                            "description": "Filter to a specific year, e.g. 2024.",
+                        },
+                        "time_constraint": {
+                            "type": "string",
+                            "description": "Free-text time filter, e.g. 'last 6 months', 'March 2024'. Overrides year.",
+                        },
+                    },
+                    "required": ["location_name"],
+                },
             },
-        },
-        {
-            "name": "get_database_stats",
-            "description": "Return summary statistics about the ARGO database (record counts, date range, averages).",
-            "parameters": {},
-        },
-        {
-            "name": "validate_sql_safety",
-            "description": "Run the SQL Sanitizer on a query string and return safety verdict.",
-            "parameters": {
-                "sql": {"type": "string", "required": True},
+            # ── Depth profile ───────────────────────────────────────────
+            {
+                "name": "get_depth_profile",
+                "description": (
+                    "Retrieve the latest vertical depth profile (pressure vs "
+                    "temperature/salinity/oxygen) for a specific ARGO float. "
+                    "Shows ocean stratification from surface to ~2000 dbar."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "float_id": {
+                            "type": "integer",
+                            "description": "7-digit ARGO float WMO ID, e.g. 2902115.",
+                        },
+                    },
+                    "required": ["float_id"],
+                },
             },
-        },
-    ]
-}
+            # ── Database statistics ─────────────────────────────────────
+            {
+                "name": "get_database_stats",
+                "description": (
+                    "Return summary statistics about the local ARGO database — "
+                    "total records, unique float count, date range, and global "
+                    "average temperature/salinity. Useful for understanding data "
+                    "coverage before querying."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+            },
+            # ── Intent parser (advanced) ────────────────────────────────
+            {
+                "name": "parse_query_intent",
+                "description": (
+                    "Parse a natural-language ocean data question into a "
+                    "structured intent dict (query_type, metrics, location, "
+                    "time constraints). Useful for two-step workflows: parse "
+                    "intent → inspect/override → build SQL."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                            "description": "Plain-English question about ARGO ocean data.",
+                        },
+                    },
+                    "required": ["question"],
+                },
+            },
+        ]
+    }
+
+
+# Legacy alias — kept for backwards compatibility with any external scripts
+# that may reference the old constant.
+TOOL_MANIFEST = get_tool_manifest()
