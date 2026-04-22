@@ -17,7 +17,7 @@
 <img src="https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"/>
 <img src="https://img.shields.io/badge/Flask-2.0+-000000?style=flat-square&logo=flask&logoColor=white" alt="Flask"/>
 <img src="https://img.shields.io/badge/PostgreSQL-15+-316192?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
-<img src="https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036?style=flat-square&logo=groq&logoColor=white" alt="Groq"/>
+<img src="https://img.shields.io/badge/NVIDIA-Llama_3.3_70B-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="NVIDIA NIM"/>
 <img src="https://img.shields.io/badge/License-MIT-22c55e?style=flat-square" alt="License"/>
 </p>
 
@@ -272,11 +272,10 @@ result = SQLSanitizer.validate("DROP TABLE argo_data;")
 
 ### Prerequisites
 
-| Requirement | Version | Get It |
-|:------------|:-------:|:-------|
-| Python | 3.9+ | [python.org](https://python.org/downloads) |
-| PostgreSQL | 12+ | [postgresql.org](https://postgresql.org/download) |
-| Groq API Key | Free | [console.groq.com](https://console.groq.com/keys) |
+| Service | Cost | Get Key At |
+| :--- | :--- | :--- |
+| NVIDIA NIM | Varies | [build.nvidia.com](https://build.nvidia.com) |
+| DeepSeek | Cheap | [platform.deepseek.com](https://platform.deepseek.com/) |
 
 ### Installation
 
@@ -298,7 +297,9 @@ python local_setup.py
 ```env
 # .env
 DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/floatchart
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxx
+# 2. Get an NVIDIA API Key for Llama 3.3
+NVIDIA_API_KEY=nvapi-xxxxxxxxxxxxxxxxxxxxxxxx
+NVIDIA_MODEL=meta/llama-3.3-70b-instruct
 
 # Optional premium LLM providers
 # ANTHROPIC_API_KEY=sk-ant-...
@@ -344,7 +345,7 @@ ARGOFLOAT-CHART/
 | Layer | Technology |
 |:-----:|:-----------|
 | **Backend** | Python 3.9+ · Flask 2.0+ |
-| **AI / LLM** | Groq Llama 3.3 70B (free) · DeepSeek · OpenAI · Anthropic Claude · Gemini |
+| **AI / LLM** | NVIDIA Llama 3.3 70B · DeepSeek · OpenAI · Anthropic Claude · Gemini |
 | **Database** | PostgreSQL 15+ · SQLAlchemy |
 | **Frontend** | HTML5 · CSS3 · JavaScript |
 | **Visualisation** | Chart.js · Leaflet.js |
@@ -403,7 +404,7 @@ ARGOFLOAT-CHART/
 |:--------:|:-----|
 | 🌊 **ARGO Program** | [argo.ucsd.edu](https://argo.ucsd.edu) |
 | 📡 **ERDDAP Server** | [erddap.ifremer.fr](https://erddap.ifremer.fr) |
-| 🧠 **Groq Console** | [console.groq.com](https://console.groq.com) |
+| 🧠 **NVIDIA NIM** | [build.nvidia.com](https://build.nvidia.com) |
 | 🤝 **Contributing** | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 
 </div>

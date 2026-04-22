@@ -103,6 +103,26 @@ def get_groq_llm():
             print(f"⚠ Groq unavailable: {e}")
     return None
 
+def get_nvidia_llm():
+    """Get NVIDIA NIM LLM (build.nvidia.com). Best for high-performance reasoning."""
+    load_dotenv()
+    nvidia_key = os.getenv("NVIDIA_API_KEY")
+    if nvidia_key:
+        try:
+            from langchain_openai import ChatOpenAI
+            # The best overall model on NVIDIA NIM for SQL and reasoning tasks
+            model = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+            return ChatOpenAI(
+                model=model,
+                temperature=0,
+                api_key=nvidia_key,
+                base_url="https://integrate.api.nvidia.com/v1",
+                max_retries=3
+            )
+        except Exception as e:
+            print(f"⚠ NVIDIA NIM unavailable: {e}")
+    return None
+
 
 def get_deepseek_llm():
     """Get DeepSeek LLM for complex reasoning queries."""
@@ -209,9 +229,10 @@ def get_llm(for_task="general", query_complexity=None):
     use_premium = os.getenv("USE_PREMIUM_AI", "false").lower() == "true"
     
     if use_premium:
-        # Premium mode: OpenAI > Claude > Groq > Gemini
+        # Premium mode: NVIDIA > OpenAI > Claude > Groq > Gemini
         print("💎 Premium AI mode enabled")
         providers = [
+            ("NVIDIA NIM", get_nvidia_llm),
             ("OpenAI GPT-4o", get_openai_llm),
             ("Anthropic Claude", get_anthropic_llm),
             ("Groq Llama", get_groq_llm),
@@ -219,10 +240,10 @@ def get_llm(for_task="general", query_complexity=None):
             ("DeepSeek", get_deepseek_llm),
         ]
     else:
-        # FREE mode: Groq is best - truly unlimited FREE!
-        # Works great for both simple AND complex queries
-        print("[FREE] Using Groq AI")
+        # FREE mode: NVIDIA (if configured) > Groq is best
+        print("[FREE] Using AI Provider")
         providers = [
+            ("NVIDIA NIM", get_nvidia_llm),
             ("Groq Llama", get_groq_llm),
             ("Google Gemini", get_gemini_llm),
             ("DeepSeek", get_deepseek_llm),
@@ -239,15 +260,18 @@ def get_llm(for_task="general", query_complexity=None):
     
     raise RuntimeError(
         "ERROR: No working LLM found! Please set at least one API key:\n"
-        "\n  FREE OPTIONS (Recommended):\n"
-        "  - GROQ_API_KEY (Best FREE option - unlimited, fast, great quality!)\n"
+        "\n  BEST PERFORMANCE (NVIDIA NIM):\n"
+        "  - NVIDIA_API_KEY (Extremely fast, top-tier reasoning via build.nvidia.com)\n"
+        "\n  FREE OPTIONS:\n"
+        "  - GROQ_API_KEY (Unlimited, fast, great quality!)\n"
         "\n  PAY-AS-YOU-GO:\n"
         "  - DEEPSEEK_API_KEY (Very cheap - excellent reasoning)\n"
         "\n  PREMIUM OPTIONS:\n"
         "  - OPENAI_API_KEY (GPT-4o - Best quality)\n"
         "  - ANTHROPIC_API_KEY (Claude - Excellent reasoning)\n"
         "  - GOOGLE_API_KEY (Gemini - Good but has rate limits)\n"
-        "\n  Get FREE API key:\n"
+        "\n  Get API keys:\n"
+        "  - NVIDIA: https://build.nvidia.com\n"
         "  - Groq: https://console.groq.com/keys"
     )
 
@@ -353,13 +377,16 @@ def get_engine():
     if "cockroach" in db_url.lower() and "sslmode=verify-full" in db_url:
         db_url = db_url.replace("sslmode=verify-full", "sslmode=require")
     
-    _ENGINE = create_engine(
-        db_url,
-        pool_pre_ping=True,
-        pool_size=2,
-        max_overflow=3,
-        connect_args={"sslmode": "require"} if "cockroach" in db_url.lower() else {}
-    )
+    if db_url.startswith("duckdb"):
+        _ENGINE = create_engine(db_url)
+    else:
+        _ENGINE = create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_size=2,
+            max_overflow=3,
+            connect_args={"sslmode": "require"} if "cockroach" in db_url.lower() else {}
+        )
     return _ENGINE
 
 db_context = {}

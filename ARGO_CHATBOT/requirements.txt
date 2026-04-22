@@ -15,10 +15,9 @@ pandas
 numpy
 requests
 
-# AI (at least one required - Groq is FREE!)
+# AI (at least one required - NVIDIA NIM is recommended)
 langchain-core
-langchain-groq         # FREE - recommended
-langchain-openai       # Paid - best quality
+langchain-openai       # Required for NVIDIA NIM
 langchain-google-genai # Free tier available
 
 # Environment

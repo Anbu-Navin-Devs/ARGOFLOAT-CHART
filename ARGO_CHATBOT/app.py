@@ -182,16 +182,19 @@ def get_db_engine():
         connect_args["sslmode"] = "require"
     
     try:
-        _engine = create_engine(
-            db_url,
-            pool_pre_ping=True,      # Check connection health
-            pool_size=5,              # More connections ready
-            max_overflow=10,          # Allow burst
-            pool_recycle=120,         # Recycle every 2 min
-            pool_timeout=15,          # Fail fast
-            connect_args=connect_args,
-            echo=False,
-        )
+        if db_url.startswith("duckdb"):
+            _engine = create_engine(db_url)
+        else:
+            _engine = create_engine(
+                db_url,
+                pool_pre_ping=True,      # Check connection health
+                pool_size=5,              # More connections ready
+                max_overflow=10,          # Allow burst
+                pool_recycle=120,         # Recycle every 2 min
+                pool_timeout=15,          # Fail fast
+                connect_args=connect_args,
+                echo=False,
+            )
         # Eagerly create connections
         with _engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -335,7 +338,7 @@ def health_check():
     # Check environment variables (don't expose secrets)
     env_check = {
         "DATABASE_URL_set": bool(os.getenv("DATABASE_URL")),
-        "GROQ_API_KEY_set": bool(os.getenv("GROQ_API_KEY")),
+        "NVIDIA_API_KEY_set": bool(os.getenv("NVIDIA_API_KEY")),
         "DATABASE_URL_prefix": os.getenv("DATABASE_URL", "")[:30] + "..." if os.getenv("DATABASE_URL") else None
     }
     

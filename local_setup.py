@@ -131,14 +131,15 @@ def create_env_file(project_root):
 # Create database: CREATE DATABASE floatchart;
 DATABASE_URL=postgresql://postgres:password@localhost:5432/floatchart
 
-# 🧠 AI PROVIDER - Groq (100% FREE!)
-# Get FREE key at: https://console.groq.com/keys
-GROQ_API_KEY=your_groq_api_key_here
+# 🧠 AI PROVIDER - NVIDIA NIM
+# Get API key at: https://build.nvidia.com
+NVIDIA_API_KEY=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
+NVIDIA_MODEL=meta/llama-3.3-70b-instruct
 """
         root_env.write_text(env_content)
         print_success("Created .env file at project root")
     
-    print_warning("Please edit .env with your PostgreSQL credentials and Groq API key")
+    print_warning("Please edit .env with your PostgreSQL credentials and NVIDIA API key")
     return True
 
 def install_dependencies(project_root):
@@ -196,7 +197,7 @@ def check_env_configured(project_root):
     content = env_file.read_text()
     
     # Check for placeholder values (user needs to replace these)
-    if "your_groq_api_key_here" in content or "your_password" in content:
+    if "your_password" in content:
         return False
     
     return "DATABASE_URL=" in content and len(content) > 50
@@ -307,16 +308,15 @@ def show_instructions():
    • Create database: CREATE DATABASE floatchart;
    • Note your password for postgres user
 
-{Colors.CYAN}2. Get a FREE AI API Key (Groq):{Colors.END}
-   • Go to https://console.groq.com/keys
-   • Sign up with Google/GitHub (30 seconds)
-   • Create API key - 100% FREE, no limits!
+{Colors.CYAN}2. Get an NVIDIA API Key:{Colors.END}
+   • Go to https://build.nvidia.com
+   • Get a key for Llama 3.3 70B Instruct
 
 {Colors.CYAN}3. Configure .env:{Colors.END}
    Edit {Colors.BOLD}.env{Colors.END} in project root:
    
    DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/floatchart
-   GROQ_API_KEY=gsk_...
+   NVIDIA_API_KEY=nvapi-...
 
 {Colors.CYAN}4. Download Data:{Colors.END}
    Run: cd DATA_GENERATOR && python app.py
@@ -376,11 +376,11 @@ def main():
 Please edit {Colors.BOLD}.env{Colors.END} (at project root) with your credentials:
 
   DATABASE_URL=postgresql://postgres:password@localhost:5432/floatchart
-  GROQ_API_KEY=your_groq_api_key
+  NVIDIA_API_KEY=nvapi-...
 
-{Colors.CYAN}Get free credentials at:{Colors.END}
+{Colors.CYAN}Get credentials at:{Colors.END}
   • Database: Install PostgreSQL locally (UNLIMITED storage!)
-  • AI API:   https://console.groq.com (100% FREE, no limits!)
+  • AI API:   https://build.nvidia.com
 
 After configuring, run this script again or:
   cd DATA_GENERATOR && python app.py  (to download data)

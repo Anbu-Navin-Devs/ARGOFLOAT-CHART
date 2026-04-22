@@ -54,7 +54,7 @@ pip install -r ARGO_CHATBOT/requirements.txt
 
 # 4. Copy and fill in credentials
 cp .env.example .env
-# Edit .env: set DATABASE_URL and GROQ_API_KEY
+# Edit .env: set DATABASE_URL and NVIDIA_API_KEY
 
 # 5. Run the app
 cd ARGO_CHATBOT
