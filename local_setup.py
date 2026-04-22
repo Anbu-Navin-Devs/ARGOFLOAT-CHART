@@ -174,7 +174,7 @@ def install_dependencies(project_root):
 
 def verify_installation():
     """Verify key packages are installed."""
-    packages = ['flask', 'sqlalchemy', 'pandas']
+    packages = ['flask', 'sqlalchemy', 'pandas', 'langchain_core', 'langchain_openai']
     missing = []
     
     for pkg in packages:

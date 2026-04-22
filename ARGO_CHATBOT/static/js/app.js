@@ -1506,7 +1506,8 @@ async function sendQueryStreaming(question) {
         const response = await fetch(`${CONFIG.API_BASE}/api/query/stream?question=${encodeURIComponent(question)}`);
         
         if (!response.ok) {
-            throw new Error('Stream request failed');
+            const errData = await response.json();
+            throw new Error(errData.error || 'Server error');
         }
         
         const reader = response.body.getReader();
@@ -1589,6 +1590,10 @@ async function sendQueryNormal(question) {
         const res = await fetch(`${CONFIG.API_BASE}/api/query?${params}`);
         const result = await res.json();
         
+        if (!res.ok) {
+            throw new Error(result.error || 'Server error');
+        }
+        
         removeTypingIndicator(typingId);
         
         const summary = result.summary || 'Query completed';
@@ -1612,8 +1617,8 @@ async function sendQueryNormal(question) {
     } catch (e) {
         console.error('Query failed:', e);
         removeTypingIndicator(typingId);
-        addMessage('Sorry, an error occurred. Please try again.', 'assistant');
-        showToast('Error', 'Query failed', 'error');
+        addMessage(`Sorry, an error occurred: ${e.message}`, 'assistant');
+        showToast('Error', e.message, 'error');
     } finally {
         setLoading(false);
     }
