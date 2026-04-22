@@ -59,6 +59,9 @@ def clean_deployment_files(project_root):
         project_root / "Procfile",
         project_root / "ARGO_CHATBOT" / ".env",  # Remove deployed .env for local setup
         project_root / "ARGO_CHATBOT" / "gunicorn.conf.py",  # Not needed locally
+        project_root / "vercel.json",       # Vercel deployment config
+        project_root / "wsgi.py",           # Vercel WSGI entry point
+        project_root / "prototype.duckdb",  # Prototype DB (use real PostgreSQL locally)
     ]
     
     for file_path in deployment_files:
@@ -66,18 +69,18 @@ def clean_deployment_files(project_root):
             try:
                 file_path.unlink()
                 print_success(f"Cleaned deployment file: {file_path.name}")
-            except Exception:
-                pass  # Ignore errors
+            except Exception as ex:
+                print_warning(f"Could not remove {file_path.name}: {ex}")
     
     # Show cleanup notice
     print(f"""
 {Colors.CYAN}{'─'*60}{Colors.END}
-{Colors.BOLD}📋 Local Setup Notes:{Colors.END}
+{Colors.BOLD}Local Setup Notes:{Colors.END}
 
-  • Deployment files removed (Procfile, gunicorn.conf.py, .env)
-  • Create YOUR OWN .env at project root with YOUR credentials
-  • The deployed demo has limited data (India region, 2025-2026)
-  • Local setup gives you UNLIMITED data access!
+  - Deployment files removed (vercel.json, wsgi.py, prototype.duckdb)
+  - Create YOUR OWN .env at project root with YOUR credentials
+  - The deployed demo uses a small prototype DuckDB dataset
+  - Local setup gives you UNLIMITED data access via PostgreSQL!
 
 {Colors.GREEN}Tip:{Colors.END} Use Data Manager to download full ARGO dataset
 {Colors.CYAN}{'─'*60}{Colors.END}
@@ -198,6 +201,13 @@ def check_env_configured(project_root):
     
     # Check for placeholder values (user needs to replace these)
     if "your_password" in content:
+        return False
+    if "nvapi-xxxxxxxxxxxxxxxxxxxxxxxx" in content:
+        return False
+    if "your_nvidia_api_key_here" in content:
+        return False
+    # Also block if still pointing to the prototype duckdb
+    if "duckdb:///prototype" in content:
         return False
     
     return "DATABASE_URL=" in content and len(content) > 50
