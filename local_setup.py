@@ -3,7 +3,7 @@ FloatChart - Local Setup Script
 One-click setup for running FloatChart locally.
 
 Usage:
-    python local_setup.py           # Full setup + launch Data Manager
+    python local_setup.py           # Full setup + launch menu
     python local_setup.py --quick   # Skip to app launch
 """
 
@@ -49,43 +49,6 @@ def print_warning(message):
 def print_error(message):
     print(f"  {Colors.FAIL}✗{Colors.END} {message}")
 
-def clean_deployment_files(project_root):
-    """
-    Remove deployment-specific files after local setup.
-    These files are only needed for cloud deployment (Railway/Render).
-    Local users don't need these - keeps their workspace clean.
-    """
-    deployment_files = [
-        project_root / "Procfile",
-        project_root / "ARGO_CHATBOT" / ".env",  # Remove deployed .env for local setup
-        project_root / "ARGO_CHATBOT" / "gunicorn.conf.py",  # Not needed locally
-        project_root / "vercel.json",       # Vercel deployment config
-        project_root / "wsgi.py",           # Vercel WSGI entry point
-        project_root / "prototype.duckdb",  # Prototype DB (use real PostgreSQL locally)
-    ]
-    
-    for file_path in deployment_files:
-        if file_path.exists():
-            try:
-                file_path.unlink()
-                print_success(f"Cleaned deployment file: {file_path.name}")
-            except Exception as ex:
-                print_warning(f"Could not remove {file_path.name}: {ex}")
-    
-    # Show cleanup notice
-    print(f"""
-{Colors.CYAN}{'─'*60}{Colors.END}
-{Colors.BOLD}Local Setup Notes:{Colors.END}
-
-  - Deployment files removed (vercel.json, wsgi.py, prototype.duckdb)
-  - Create YOUR OWN .env at project root with YOUR credentials
-  - The deployed demo uses a small prototype DuckDB dataset
-  - Local setup gives you UNLIMITED data access via PostgreSQL!
-
-{Colors.GREEN}Tip:{Colors.END} Use Data Manager to download full ARGO dataset
-{Colors.CYAN}{'─'*60}{Colors.END}
-""")
-
 def check_python_version():
     """Check if Python version is compatible."""
     version = sys.version_info
@@ -108,45 +71,37 @@ def check_pip():
 
 def create_env_file(project_root):
     """
-    Setup environment files for LOCAL development.
-    - Creates .env at PROJECT ROOT from .env.example
-    - PostgreSQL only (local database)
+    Setup .env file for local development.
+    Uses DuckDB by default (zero-config) with NVIDIA NIM for AI.
     """
     root_env = project_root / ".env"
     env_example = project_root / ".env.example"
     
-    # Only create root .env if it doesn't exist
     if root_env.exists():
         print_success("Root .env file already exists")
         return True
     
-    # Copy .env.example to .env (for local use)
     if env_example.exists():
         shutil.copy(env_example, root_env)
         print_success("Created .env from .env.example")
     else:
-        # Fallback: create minimal .env with PostgreSQL
-        env_content = """# FloatChart Configuration - Local Setup
-# Using PostgreSQL for LOCAL (unlimited storage!)
+        env_content = """# FloatChart Configuration
+# Database: DuckDB (zero-config, runs locally)
+DATABASE_URL=duckdb:///prototype.duckdb
 
-# 🏠 DATABASE: PostgreSQL
-# Install PostgreSQL: https://www.postgresql.org/download/
-# Create database: CREATE DATABASE floatchart;
-DATABASE_URL=postgresql://postgres:password@localhost:5432/floatchart
-
-# 🧠 AI PROVIDER - NVIDIA NIM
-# Get API key at: https://build.nvidia.com
-NVIDIA_API_KEY=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
+# AI Provider: NVIDIA NIM
+# Get your free API key at: https://build.nvidia.com
+NVIDIA_API_KEY=nvapi-xxxxxxxxxxxxxxxxxxxxxxxx
 NVIDIA_MODEL=meta/llama-3.3-70b-instruct
 """
         root_env.write_text(env_content)
-        print_success("Created .env file at project root")
+        print_success("Created .env file")
     
-    print_warning("Please edit .env with your PostgreSQL credentials and NVIDIA API key")
+    print_warning("Please edit .env with your NVIDIA API key (get one at https://build.nvidia.com)")
     return True
 
 def install_dependencies(project_root):
-    """Install Python dependencies."""
+    """Install Python dependencies from requirements.txt."""
     req_file = project_root / "requirements.txt"
     
     if not req_file.exists():
@@ -185,13 +140,14 @@ def verify_installation():
     
     if missing:
         print_warning(f"Some packages may need manual install: {', '.join(missing)}")
+        print(f"  Run: {Colors.CYAN}pip install -r requirements.txt{Colors.END}")
         return False
     
     print_success("All key packages verified")
     return True
 
 def check_env_configured(project_root):
-    """Check if .env (at project root) has real credentials."""
+    """Check if .env has real credentials (not placeholders)."""
     env_file = project_root / ".env"
     
     if not env_file.exists():
@@ -199,18 +155,35 @@ def check_env_configured(project_root):
     
     content = env_file.read_text()
     
-    # Check for placeholder values (user needs to replace these)
+    # Check for placeholder values
     if "your_password" in content:
         return False
     if "nvapi-xxxxxxxxxxxxxxxxxxxxxxxx" in content:
         return False
     if "your_nvidia_api_key_here" in content:
         return False
-    # Also block if still pointing to the prototype duckdb
-    if "duckdb:///prototype" in content:
-        return False
     
     return "DATABASE_URL=" in content and len(content) > 50
+
+def check_prototype_db(project_root):
+    """Check if prototype.duckdb exists and has data."""
+    db_file = project_root / "prototype.duckdb"
+    
+    if not db_file.exists():
+        print_warning("prototype.duckdb not found — you can generate it with the Data Manager")
+        return False
+    
+    # Quick check: does it have data?
+    try:
+        import duckdb
+        con = duckdb.connect(str(db_file), read_only=True)
+        count = con.execute("SELECT COUNT(*) FROM argo_data").fetchone()[0]
+        con.close()
+        print_success(f"Database ready: {count:,} records in argo_data")
+        return True
+    except Exception as e:
+        print_warning(f"Database exists but check failed: {e}")
+        return True  # File exists, might still work
 
 def launch_data_manager(project_root):
     """Launch the Data Manager web app."""
@@ -230,7 +203,6 @@ Use it to download ARGO oceanographic data.
     
     time.sleep(1)
     
-    # Open browser after a short delay
     def open_browser():
         time.sleep(2)
         webbrowser.open("http://localhost:5001")
@@ -239,9 +211,66 @@ Use it to download ARGO oceanographic data.
     browser_thread = threading.Thread(target=open_browser, daemon=True)
     browser_thread.start()
     
-    # Run the data manager
     os.chdir(data_gen_dir)
     subprocess.run([sys.executable, "app.py"])
+
+def launch_chatbot(project_root):
+    """Launch the FloatChart Chat App."""
+    chatbot_dir = project_root / "ARGO_CHATBOT"
+    
+    print(f"""
+{Colors.CYAN}{Colors.BOLD}
+╔═══════════════════════════════════════════════════════════════╗
+║            🚀 Launching FloatChart Chat                       ║
+╚═══════════════════════════════════════════════════════════════╝
+{Colors.END}
+The Chat App will open in your browser.
+
+{Colors.WARNING}Press Ctrl+C to stop the server when done.{Colors.END}
+""")
+    
+    time.sleep(1)
+    
+    def open_browser():
+        time.sleep(2)
+        webbrowser.open("http://localhost:5000")
+    
+    import threading
+    browser_thread = threading.Thread(target=open_browser, daemon=True)
+    browser_thread.start()
+    
+    os.chdir(chatbot_dir)
+    subprocess.run([sys.executable, "app.py"])
+
+def show_instructions():
+    """Show detailed setup instructions."""
+    print(f"""
+{Colors.BOLD}📝 SETUP INSTRUCTIONS:{Colors.END}
+
+{Colors.CYAN}1. Database (DuckDB — zero config):{Colors.END}
+   • DuckDB is included — no installation needed!
+   • The prototype database is ready to use out of the box
+   • For large datasets, switch to PostgreSQL in .env
+
+{Colors.CYAN}2. Get an NVIDIA API Key:{Colors.END}
+   • Go to https://build.nvidia.com
+   • Get a key for Llama 3.3 70B Instruct
+
+{Colors.CYAN}3. Configure .env:{Colors.END}
+   Edit {Colors.BOLD}.env{Colors.END} in project root:
+   
+   DATABASE_URL=duckdb:///prototype.duckdb
+   NVIDIA_API_KEY=nvapi-...
+
+{Colors.CYAN}4. Download Data (optional):{Colors.END}
+   Run: cd DATA_GENERATOR && python app.py
+   → Opens wizard at http://localhost:5001
+
+{Colors.CYAN}5. Launch Chat App:{Colors.END}
+   Run: cd ARGO_CHATBOT && python app.py
+   → Opens chat at http://localhost:5000
+
+""")
 
 def show_quick_launch_menu(project_root):
     """Show menu for quick launch options."""
@@ -277,67 +306,6 @@ def show_quick_launch_menu(project_root):
         else:
             print("Invalid choice. Please enter 1, 2, 3, or q.")
 
-def launch_chatbot(project_root):
-    """Launch the Chat App."""
-    chatbot_dir = project_root / "ARGO_CHATBOT"
-    
-    print(f"""
-{Colors.CYAN}{Colors.BOLD}
-╔═══════════════════════════════════════════════════════════════╗
-║            🚀 Launching FloatChart Chat                       ║
-╚═══════════════════════════════════════════════════════════════╝
-{Colors.END}
-The Chat App will open in your browser.
-
-{Colors.WARNING}Press Ctrl+C to stop the server when done.{Colors.END}
-""")
-    
-    time.sleep(1)
-    
-    # Open browser after a short delay
-    def open_browser():
-        time.sleep(2)
-        webbrowser.open("http://localhost:5000")
-    
-    import threading
-    browser_thread = threading.Thread(target=open_browser, daemon=True)
-    browser_thread.start()
-    
-    # Run the chatbot
-    os.chdir(chatbot_dir)
-    subprocess.run([sys.executable, "app.py"])
-
-def show_instructions():
-    """Show detailed setup instructions."""
-    print(f"""
-{Colors.BOLD}📝 SETUP INSTRUCTIONS:{Colors.END}
-
-{Colors.CYAN}1. Setup Database (PostgreSQL):{Colors.END}
-   • Install PostgreSQL: https://postgresql.org/download
-   • Open pgAdmin or psql terminal
-   • Create database: CREATE DATABASE floatchart;
-   • Note your password for postgres user
-
-{Colors.CYAN}2. Get an NVIDIA API Key:{Colors.END}
-   • Go to https://build.nvidia.com
-   • Get a key for Llama 3.3 70B Instruct
-
-{Colors.CYAN}3. Configure .env:{Colors.END}
-   Edit {Colors.BOLD}.env{Colors.END} in project root:
-   
-   DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/floatchart
-   NVIDIA_API_KEY=nvapi-...
-
-{Colors.CYAN}4. Download Data:{Colors.END}
-   Run: cd DATA_GENERATOR && python app.py
-   → Opens wizard at http://localhost:5001
-
-{Colors.CYAN}5. Launch Chat App:{Colors.END}
-   Run: cd ARGO_CHATBOT && python app.py
-   → Opens chat at http://localhost:5000
-
-""")
-
 def main():
     print_banner()
     
@@ -347,7 +315,7 @@ def main():
     quick_mode = "--quick" in sys.argv
     
     if not quick_mode:
-        total_steps = 4
+        total_steps = 5
         
         # Step 1: Check Python
         print_step(1, total_steps, "Checking Python version...")
@@ -364,15 +332,14 @@ def main():
         if not install_dependencies(project_root):
             print_warning("Some dependencies may have failed. Try: pip install -r requirements.txt")
         
-        # Step 4: Create .env file
+        # Step 4: Setup environment
         print_step(4, total_steps, "Setting up configuration...")
         create_env_file(project_root)
         
-        # Clean deployment files (not needed for local)
-        clean_deployment_files(project_root)
-        
-        # Verify
+        # Step 5: Verify everything
+        print_step(5, total_steps, "Verifying installation...")
         verify_installation()
+        check_prototype_db(project_root)
     
     # Check if env is configured
     if check_env_configured(project_root):
@@ -385,12 +352,11 @@ def main():
 {Colors.END}
 Please edit {Colors.BOLD}.env{Colors.END} (at project root) with your credentials:
 
-  DATABASE_URL=postgresql://postgres:password@localhost:5432/floatchart
+  DATABASE_URL=duckdb:///prototype.duckdb
   NVIDIA_API_KEY=nvapi-...
 
-{Colors.CYAN}Get credentials at:{Colors.END}
-  • Database: Install PostgreSQL locally (UNLIMITED storage!)
-  • AI API:   https://build.nvidia.com
+{Colors.CYAN}Get your NVIDIA API key at:{Colors.END}
+  https://build.nvidia.com
 
 After configuring, run this script again or:
   cd DATA_GENERATOR && python app.py  (to download data)

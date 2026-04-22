@@ -270,36 +270,8 @@ def serve_js(path):
     return response
 
 # =============================================
-# LOCAL MODE DETECTION
-# =============================================
-
-def is_local_mode():
-    """Check if running in local mode (not cloud deployment)."""
-    cloud_indicators = [
-        "RENDER", "RAILWAY_ENVIRONMENT", "HEROKU_APP_ID",
-        "VERCEL", "FLY_APP_NAME", "K_SERVICE", "DYNO"
-    ]
-    for indicator in cloud_indicators:
-        if os.getenv(indicator):
-            return False
-    
-    if os.getenv("LOCAL_MODE", "").lower() == "true":
-        return True
-    
-    # Default to local if no cloud indicators found
-    return True
-
-# =============================================
 # API ENDPOINTS
 # =============================================
-
-@app.route('/api/local-mode')
-def check_local_mode():
-    """Check if running in local mode (data manager available)."""
-    return jsonify({
-        "local_mode": is_local_mode(),
-        "data_manager_url": "http://localhost:5001" if is_local_mode() else None
-    })
 
 @app.route('/api/health')
 def health_check():
@@ -744,7 +716,7 @@ def api_v1_query():
 
     Method:  POST (preferred) or GET
     Version: v1 (stable)
-    Auth:    None required for local deployments.
+    Auth:    None required.
 
     ── POST body (application/json) ─────────────────────────────────────────
     {
@@ -783,8 +755,7 @@ def api_v1_query():
     UPDATE, TRUNCATE, etc.) are rejected with a 403 response.
 
     ── Rate limiting ────────────────────────────────────────────────────────
-    Local deployments: no limit enforced.
-    Cloud deployments: recommended 60 req/min per IP.
+    No limit enforced.
     """
     # ── Parse input (validate BEFORE checking AI availability) ─────────────
     if request.method == 'GET':

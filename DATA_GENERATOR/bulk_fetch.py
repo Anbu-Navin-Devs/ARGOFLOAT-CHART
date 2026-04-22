@@ -509,8 +509,6 @@ postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb
 5. Update your .env file:
    DATABASE_URL=postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
 
-6. Update Render environment variable with the same URL
-
 Then run: python bulk_fetch.py --init-db
 """)
 
